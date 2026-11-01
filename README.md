@@ -1,89 +1,102 @@
 # 🛡️ ScamCheck
 
-An AI agent that investigates suspicious messages for people in India. Forward it an SMS, link, screenshot, UPI ID or phone number on WhatsApp. It picks its own tools, collects evidence and replies with a verdict and the reasons for it. If you've already paid, it tells you to call **1930** and drafts your **cybercrime.gov.in** complaint.
+A free scam checker for people in India. Send it a suspicious SMS, link, UPI ID or phone number. It runs a set of real checks in under a few seconds and replies with a verdict, the evidence behind it and what to do. If you've already paid, it tells you to call **1930** and drafts your **cybercrime.gov.in** complaint.
 
 > Indians lost about ₹22,495 crore to cyber fraud in 2025, up 24% on 2024, mostly through investment scams. There have been 38 lakh+ complaints since 2021.
 
-## What the agent can do
+**Runs entirely on free tiers.** One AI call per check (Groq's free tier). When the free quota runs out, a rule-based verdict still answers, so nobody is left without a reply.
 
-| Tool | What it checks | Needs |
+## How a check works
+
+1. **Code runs every check in parallel**, with no AI involved:
+
+| Check | What it looks at | Needs |
 |---|---|---|
 | `extract_indicators` | Links, UPI IDs (+ whether the PSP handle is real), phone numbers, emails, Telegram/wa.me handles, ₹ amounts | none |
 | `check_domain` | Brand impersonation of ~30 Indian banks, UPI apps, govt sites and couriers (keyword, typosquat and homoglyph checks), shorteners, risky TLDs, punycode, free hosting, **domain age via RDAP** | none |
 | `check_url_reputation` | Google Safe Browsing + VirusTotal (URL and domain reports) | free API keys |
-| `visit_in_sandbox` | Opens the link in a throwaway headless phone browser (Playwright): redirect chain, final URL, whether it asks for password/OTP/card/Aadhaar, APK downloads, **screenshot that Claude looks at** | none |
+| `visit_in_sandbox` | Opens the link in a throwaway headless phone browser (Playwright): redirect chain, final URL, whether it asks for password/OTP/card/Aadhaar, APK downloads, screenshot. Skipped for official bank domains. | none |
 | `match_scam_scripts` | 10 known scripts: digital arrest, task scam, fake KYC, investment, electricity cut-off, courier, KBC lottery, UPI refund/collect, sextortion, loan apps (English + Hinglish cues) | none |
 | `analyse_phone_number` | Foreign numbers posing as Indian agencies, scam-compound regions, 140-series | none |
 | `check_indicator_history` | Whether this UPI ID/number/domain appeared in earlier ScamCheck verdicts (local SQLite) | none |
-| `draft_cybercrime_complaint` | NCRP-format complaint with [FILL IN] gaps + urgent steps (1930, bank freeze) | none |
-| `submit_verdict` | Structured verdict: SCAM / LIKELY_SCAM / SUSPICIOUS / LIKELY_SAFE / SAFE / INCONCLUSIVE, with evidence and severity | none |
 
-Claude (`claude-opus-5-5`) decides which tools to run and in what order, runs independent checks in parallel, reads screenshots (including a screenshot the user forwards) and writes the reply in the user's own language.
+2. **Rules grade the evidence** (critical / high / medium / low / reassuring) and reach a verdict: SCAM, LIKELY_SCAM, SUSPICIOUS, INCONCLUSIVE, LIKELY_SAFE or SAFE ([rules.py](scamcheck/rules.py)).
+3. **One AI call** (`openai/gpt-oss-120b` on Groq) reads the message and the evidence, then writes a calm reply in the person's own language (English, Hindi, Hinglish…). It can add up to two wording observations and fills in the complaint draft. **The AI can make a verdict stricter but never softer than the hard evidence**: a fake bank domain can't be talked into "safe" by a message saying "this is verified safe". It can warn, but only checks can reassure.
+4. If the person says they've paid, shared an OTP or installed an app, the reply leads with **call 1930**, and a [FILL IN]-marked complaint is drafted for cybercrime.gov.in.
+
+Screenshots (on-server OCR, free) are coming next; for now, paste the message text.
 
 ## Quick start
 
 ```powershell
-cd "C:\Users\anjal\OneDrive\Desktop\New project"
-.\.venv\Scripts\Activate.ps1          # already created, with deps + Chromium installed
-copy .env.example .env                # then put your ANTHROPIC_API_KEY in .env
+cd ScamCheck
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt; python -m playwright install chromium
+copy .env.example .env                # optional: add a free GROQ_API_KEY
 uvicorn scamcheck.server:app --reload --port 8000
 ```
 
-Open http://localhost:8000, click a sample message, and watch the trace.
+Open http://localhost:8000, click a sample message, and watch the trace. With no keys at all, everything still works on rules alone.
 
-If you're setting up from scratch: `python -m venv .venv`, `pip install -r requirements.txt`, `python -m playwright install chromium`.
+**CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"`. It stays open for follow-ups like "I already paid ₹4,999".
 
-**CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for images). It stays open for follow-ups like "I already paid ₹4,999".
+**Tests:** `pytest` runs the offline test suite. It needs no API keys or network.
 
-**Tests:** `pytest` runs 9 offline tests. They need no API keys.
+## Hooking up WhatsApp (Twilio sandbox)
 
-## Hooking up WhatsApp (Twilio sandbox, free)
+> Being replaced by Meta's free WhatsApp Cloud API test number; Twilio's trial credit runs out.
 
 1. Create a Twilio account, then go to **Messaging → Try it out → Send a WhatsApp message**. From your phone, send the join code to the sandbox number.
 2. Put `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` in `.env`.
 3. Expose your server: `ngrok http 8000`, then set `PUBLIC_BASE_URL=https://<your-id>.ngrok-free.app` in `.env` (used to verify Twilio's signature). Restart uvicorn.
 4. In the sandbox settings, set **"When a message comes in"** to `https://<your-id>.ngrok-free.app/webhook/whatsapp` (POST).
-5. Forward a scam message to the sandbox number. You get an instant "Got it" reply, then the verdict about a minute later. Anything you send in the next few seconds (a follow-up question, more screenshots) is checked together with it, so you get one verdict rather than one per message. Twilio retries are ignored. Send `reset` to start a new conversation.
+5. Forward a scam message to the sandbox number. You get an instant "Got it" reply, then the verdict. Anything you send in the next few seconds (a follow-up question, more screenshots) is checked together with it, so you get one verdict rather than one per message. Twilio retries are ignored. Send `reset` to start a new conversation.
 
-**Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the agent work while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, reasoning, screenshots), put your number in `DEMO_NUMBERS` in `.env`.
+**Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the checks run while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, screenshots, results), put your number in `DEMO_NUMBERS` in `.env`.
 
 ## Getting the free API keys
 
-- **Claude:** https://console.anthropic.com → API keys
-- **Google Safe Browsing:** create a Google Cloud project, enable the "Safe Browsing API", then create an API key
-- **VirusTotal:** sign up, then go to profile → API key (free tier: 4 requests/min)
+All optional; each one you leave out is skipped, and a skipped check never counts as a clean result.
 
-Any key you leave out is skipped. The agent is told the check was skipped, so it won't treat a missing check as a clean result.
+- **Groq** (the AI): https://console.groq.com/keys. Free, no card. Free tier: about 30 requests/min, 1,000/day, 8K tokens/min, 200K tokens/day, which is roughly 50 checks a day. Groq states it doesn't train on customer data. (Gemini's free tier was ruled out: Google uses free-tier prompts for training and human review, and people forward personal bank messages here.)
+- **Google Safe Browsing:** create a Google Cloud project, enable the "Safe Browsing API", then create an API key.
+- **VirusTotal:** sign up, then go to profile → API key (free tier: 4 requests/min, non-commercial use).
 
 ## Architecture
 
 ```
-WhatsApp ──Twilio──▶ /webhook/whatsapp ─┐  (acks in <15 s, replies async)
-Web UI ──────────▶ /api/investigate ────┼─▶ Investigation (per-user session, 30 min)
-                    /api/live ◀── events┘        │  Claude tool-use loop
+WhatsApp ──Twilio──▶ /webhook/whatsapp ─┐  (dedupes retries, merges bursts, replies async)
+Web UI ──────────▶ /api/investigate ────┼─▶ Investigation (per-person session, 30 min)
+                    /api/live ◀── events┘        │
                                                  ▼
-             extract · domain/RDAP · Safe Browsing/VirusTotal · Playwright sandbox
-             scam scripts · phone · history (SQLite) · complaint draft · verdict
+     parallel checks: extract · domain/RDAP · Safe Browsing/VirusTotal · Playwright sandbox
+                      scam scripts · phone · history (SQLite)
+                                                 ▼
+     rules: graded evidence + verdict ──▶ one Groq call (reply + wording) ──▶ verdict ≥ evidence floor
+                                                 ▼
+                                complaint draft if paid · history record
 ```
 
-- `scamcheck/agent.py`: system prompt, tool schemas (strict), the agent loop, WhatsApp formatting
-- `scamcheck/tools/`: one file per capability
+- `scamcheck/agent.py`: runs the checks in parallel, makes the one AI call, enforces the evidence floor, drafts complaints, formats for WhatsApp
+- `scamcheck/rules.py`: graded evidence, verdicts, the floor, rule-based replies (English + Hindi), "already paid" detection
+- `scamcheck/llm.py`: the Groq client (plain HTTP, no SDK); any failure means "fall back to rules"
+- `scamcheck/tools/`: one file per check
+- `scamcheck/otp_shield.py`, `scamcheck/inbox.py`: OTP masking; retry dedupe and burst merging
 - `scamcheck/data/`: brand domains and scam-script patterns. These are plain JSON, so you can grow them without code changes.
-- `scamcheck/server.py`: FastAPI app, sessions, live feed, Twilio webhook
+- `scamcheck/server.py`: FastAPI app, sessions, live feed, WhatsApp webhook
 - `runtime/`: screenshots + SQLite history (git-ignored)
 
 ## Safety notes
 
-- Forwarded messages and web pages are treated as **untrusted** (the prompt guards against injection, and page text is labeled).
+- Forwarded messages and web pages are treated as **untrusted**: the prompt says so, page text is labelled, and the evidence floor means injected text can't lower a verdict that the checks support.
 - The sandbox uses a fresh context and blocks downloads, permissions and requests to private/loopback IPs (SSRF), with hard timeouts. **For a public deployment, run the browser in a disposable container too.**
-- On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Anthropic key, Twilio credentials and an https `PUBLIC_BASE_URL`, and it rejects any webhook without a valid Twilio signature. Unsigned webhooks are accepted only when running locally, so you can test with curl.
-- **OTP shield.** People often forward a real OTP SMS to ask whether it's genuine. ScamCheck hides the code (OTPs, UPI PINs, MPINs) the moment a message arrives, before anything is logged, stored, streamed or sent to Claude. The person's first reply is a warning: never share a code, not even with ScamCheck, and if someone asked for it, it's a scam. Amounts, phone numbers, dates and postal PIN codes are left alone, because they're evidence.
+- On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Groq key, Twilio credentials and an https `PUBLIC_BASE_URL`, and it rejects any webhook without a valid Twilio signature. Unsigned webhooks are accepted only when running locally, so you can test with curl.
+- **OTP shield.** People often forward a real OTP SMS to ask whether it's genuine. ScamCheck hides the code (OTPs, UPI PINs, MPINs) the moment a message arrives, before anything is logged, stored, streamed or sent to the AI. The person's first reply is a warning: never share a code, not even with ScamCheck, and if someone asked for it, it's a scam. Amounts, phone numbers, dates and postal PIN codes are left alone, because they're evidence.
 - ScamCheck never submits complaints and never asks for OTPs, PINs or passwords. It only drafts the complaint for the user to file.
 - Verdicts are advice, not certainty. When in doubt, the reply errs toward caution.
 
 ## Ideas for next steps
 
-- Hindi voice-note input (WhatsApp audio → speech-to-text)
+- Hindi voice-note input (Groq's free Whisper → text)
 - Seed `check_indicator_history` with public data (e.g. the government's Chakshu reports, if an export becomes available)
 - An eval set of labeled real/fake messages to measure accuracy
-- Deploy to Render/Railway with a Dockerfile; move to the Meta WhatsApp Cloud API for production

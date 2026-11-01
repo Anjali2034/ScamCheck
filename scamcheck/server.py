@@ -20,8 +20,8 @@ from scamcheck.agent import Investigation, format_for_whatsapp
 def missing_production_settings() -> list[str]:
     """Settings a public deployment can't run safely without, each with what goes wrong if it's missing."""
     missing = []
-    if not config.ANTHROPIC_API_KEY:
-        missing.append("ANTHROPIC_API_KEY: every investigation would fail")
+    if not config.GROQ_API_KEY:
+        missing.append("GROQ_API_KEY (free at console.groq.com): every verdict would fall back to rules only")
     if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN):
         missing.append("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN: replies can't be sent and webhooks can't be verified")
     if not config.PUBLIC_BASE_URL.startswith("https://"):

@@ -23,10 +23,9 @@ def is_production(env=os.environ) -> bool:
 
 IS_PRODUCTION = is_production()
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = os.getenv("SCAMCHECK_MODEL", "claude-opus-5-5")
-EFFORT = os.getenv("SCAMCHECK_EFFORT", "medium")
-MAX_AGENT_TURNS = int(os.getenv("SCAMCHECK_MAX_TURNS", "12"))
+# Free tier, no card: https://console.groq.com/keys. Without a key, verdicts come from rules alone.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+MODEL = os.getenv("SCAMCHECK_MODEL", "openai/gpt-oss-120b")
 
 SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
 VIRUSTOTAL_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
