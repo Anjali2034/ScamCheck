@@ -45,7 +45,7 @@ If you're setting up from scratch: `python -m venv .venv`, `pip install -r requi
 4. In the sandbox settings, set **"When a message comes in"** to `https://<your-id>.ngrok-free.app/webhook/whatsapp` (POST).
 5. Forward a scam message to the sandbox number. You get an instant "Investigating…" reply, then the verdict about a minute later. Send `reset` to start a new conversation.
 
-**Demo tip:** open the **Live feed** tab on the web page. Every WhatsApp investigation streams there (with the sender's number masked), so an audience can watch the agent work while you use your phone.
+**Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the agent work while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, reasoning, screenshots), put your number in `DEMO_NUMBERS` in `.env`.
 
 ## Getting the free API keys
 

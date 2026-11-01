@@ -82,6 +82,27 @@ def test_tool_schemas_are_strict():
         assert set(s["required"]) == set(s["properties"])
 
 
+def test_live_feed_never_leaks_message_content():
+    from scamcheck.server import redact_for_feed
+
+    secret = "OTP 482913 for A/c XX4521, Ramesh"
+    events = [
+        {"type": "start", "text": secret, "has_image": False},
+        {"type": "thinking", "text": secret},
+        {"type": "text", "text": secret},
+        {"type": "tool_call", "name": "extract_indicators", "input": {"text": secret}},
+        {"type": "tool_result", "name": "extract_indicators", "result": {"echo": secret}},
+        {"type": "screenshot", "url": "http://x.xyz/?u=" + secret, "data": "..."},
+        {"type": "error", "message": secret},
+        {"type": "verdict", "verdict": {"verdict": "SCAM", "scam_type": "Fake KYC", "user_message": secret,
+                                        "evidence": [{"finding": secret}]}},
+    ]
+    shown = [r for r in map(redact_for_feed, events) if r]
+    assert "482913" not in str(shown) and "Ramesh" not in str(shown)
+    assert {"type": "verdict", "verdict": {"verdict": "SCAM", "scam_type": "Fake KYC"}} in shown
+    assert {"type": "tool_call", "name": "extract_indicators", "private": True} in shown
+
+
 def test_whatsapp_format_and_chunking():
     text = format_for_whatsapp({
         "verdict": "SCAM", "confidence": "high", "scam_type": "Fake KYC", "already_paid": True,

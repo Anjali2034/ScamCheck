@@ -23,5 +23,8 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")  # e.g. https://abcd.ngrok-free.app
+# Only these WhatsApp numbers show their full investigation (message text, reasoning, screenshots) in the
+# public live feed. Everyone else appears there as tool names and a verdict only.
+DEMO_NUMBERS = {"whatsapp:+" + n.strip().lstrip("+") for n in os.getenv("DEMO_NUMBERS", "").split(",") if n.strip()}
 
 HTTP_TIMEOUT = 12

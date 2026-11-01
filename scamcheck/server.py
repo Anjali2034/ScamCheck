@@ -71,14 +71,39 @@ def _mask(phone: str) -> str:
     return digits[:3] + "•••••" + digits[-3:]
 
 
-def _investigate(key: str, label: str, text: str, image, emit) -> dict:
+def redact_for_feed(e: dict) -> dict | None:
+    """What strangers may see of someone else's check: its shape, never its content.
+
+    Forwarded messages carry names, account numbers and live OTPs, and the model's reasoning, tool inputs,
+    page screenshots and error text all quote them. So only tool names and the final verdict get through.
+    """
+    match e["type"]:
+        case "start":
+            return {"type": "start", "has_image": e["has_image"], "private": True}
+        case "tool_call" | "tool_result":
+            return {"type": e["type"], "name": e["name"], "private": True}
+        case "verdict":
+            v = e["verdict"]
+            return {"type": "verdict", "verdict": {"verdict": v["verdict"], "scam_type": v["scam_type"]}}
+        case "error":
+            return {"type": "error", "message": "A check hit an error.", "private": True}
+    return None  # thinking, text, screenshots, status
+
+
+def _investigate(key: str, label: str, text: str, image, emit, public: bool = False) -> dict:
+    """Run one turn of a conversation. Only `public` sessions (demo numbers) stream their content to the live feed."""
     inv, lock = sessions.get(key)
+
+    def publish(e):
+        e = e if public else redact_for_feed(e)
+        if e:
+            feed.publish({**e, "session": label})
 
     def both(e):
         emit(e)
-        feed.publish({**e, "session": label})
+        publish(e)
 
-    feed.publish({"type": "start", "session": label, "text": text[:500], "has_image": bool(image)})
+    publish({"type": "start", "text": text[:500], "has_image": bool(image)})
     with lock:
         return inv.run(text=text, image=image, emit=both)
 
@@ -169,13 +194,15 @@ def _whatsapp_job(sender: str, text: str, media_url: str | None, media_type: str
         image = None
         if media_url and (media_type or "").startswith("image/"):
             image = whatsapp.download_media(media_url)
-        result = _investigate(f"wa:{sender}", _mask(sender), text, image, lambda e: None)
+        result = _investigate(f"wa:{sender}", _mask(sender), text, image, lambda e: None,
+                              public=sender in config.DEMO_NUMBERS)
         whatsapp.send(sender, format_for_whatsapp(result))
         if result.get("complaint"):
             whatsapp.send(sender, "📝 *Your complaint draft* (copy into cybercrime.gov.in):\n\n"
                           + result["complaint"]["complaint_text"])
     except Exception as e:
-        feed.publish({"type": "error", "session": _mask(sender), "message": str(e)})
+        print(f"[whatsapp job failed] {_mask(sender)}: {e!r}")
+        feed.publish({"type": "error", "session": _mask(sender), "message": "A check hit an error.", "private": True})
         whatsapp.send(sender, "Sorry, the check failed. Don't click links or share OTPs meanwhile. If you've paid, call 1930 now.")
 
 
