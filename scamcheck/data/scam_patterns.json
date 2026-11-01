@@ -1,0 +1,143 @@
+{
+  "_note": "Regexes are matched case-insensitively. 'weight' is how strongly each cue indicates the script. Hinglish/Hindi cues are included because many scams use them.",
+  "scripts": [
+    {
+      "id": "digital_arrest",
+      "name": "Digital arrest / fake police or agency",
+      "how_it_works": "Caller poses as CBI, ED, NCB, police, customs, TRAI or RBI. They say your Aadhaar, phone or a parcel is linked to drugs or money laundering, keep you on a video call ('digital arrest'), forbid you to tell anyone, and make you transfer money for 'verification'.",
+      "fact": "No Indian agency arrests anyone over a video call or asks for money to 'verify' funds. 'Digital arrest' does not exist in Indian law.",
+      "cues": [
+        {"re": "digital(ly)? arrest", "w": 5},
+        {"re": "\\b(cbi|ed|ncb|enforcement directorate|narcotics|crime branch|cyber cell|mumbai police|delhi police)\\b", "w": 2},
+        {"re": "money laundering|hawala|drug(s)? (parcel|trafficking)", "w": 3},
+        {"re": "arrest warrant|fir (has been|is) (registered|lodged)|case (has been )?registered against you", "w": 3},
+        {"re": "(parcel|package|courier).{0,40}(seized|illegal|drugs|passport|mdma)", "w": 3},
+        {"re": "(aadhaar|aadhar|sim|mobile number).{0,40}(misused|linked to|involved in|illegal)", "w": 3},
+        {"re": "(trai|telecom).{0,40}(disconnect|block|suspend)", "w": 2},
+        {"re": "(do not|don't|mat) (tell|inform|batana).{0,30}(anyone|family|kisi)", "w": 3},
+        {"re": "(stay|remain) on (the )?(video )?call|skype|video (call )?verification", "w": 2},
+        {"re": "(verify|verification of) (your )?(funds|money|account)|rbi (safe|secret|escrow) account", "w": 4}
+      ]
+    },
+    {
+      "id": "task_scam",
+      "name": "Online task / part-time job scam",
+      "how_it_works": "You are offered easy money for liking videos, rating hotels or reviewing products. Small payouts build trust, then you're moved to 'prepaid' or 'merchant' tasks that need deposits, which are never returned.",
+      "fact": "No genuine job asks you to pay or deposit money to receive tasks or unlock earnings.",
+      "cues": [
+        {"re": "part.?time (job|work)|work from home|ghar baithe", "w": 2},
+        {"re": "(like|subscribe|rate|review).{0,30}(youtube|videos?|hotels?|products?|google maps)", "w": 3},
+        {"re": "(earn|kamaye|income).{0,25}(₹|rs\\.?|inr)?\\s?\\d{3,5}.{0,15}(daily|per day|a day|roz|daily)", "w": 3},
+        {"re": "prepaid task|merchant task|vip task|recharge.{0,20}task|task.{0,20}(deposit|recharge)", "w": 5},
+        {"re": "telegram|t\\.me/", "w": 1},
+        {"re": "(hr|recruit(er|ment)|hiring).{0,30}(amazon|flipkart|google|deloitte|naukri)", "w": 2},
+        {"re": "commission|reward points?.{0,20}(withdraw|redeem)", "w": 1}
+      ]
+    },
+    {
+      "id": "fake_kyc",
+      "name": "Fake KYC / account block",
+      "how_it_works": "SMS says your bank account, card, PAN or SIM will be blocked unless you 'update KYC' via a link or app. The link steals your net-banking login and OTP, or installs a remote-access/SMS-stealing app.",
+      "fact": "Banks never send KYC links by SMS or WhatsApp and never ask for OTP, PIN or password.",
+      "cues": [
+        {"re": "kyc.{0,40}(expir|pending|update|incomplete|suspend|block)", "w": 4},
+        {"re": "(account|a/c|card|pan|sim|yono|net ?banking).{0,40}(block|suspend|deactivat|freeze|band ho)", "w": 3},
+        {"re": "(update|link).{0,20}(pan|aadhaar|aadhar)", "w": 3},
+        {"re": "(within|in) \\d{1,2} ?(hours?|hrs|minutes?|mins)|today (itself|midnight)|aaj raat", "w": 2},
+        {"re": "\\.apk\\b|download (the )?(app|apk)|anydesk|teamviewer|quick ?support|rustdesk", "w": 4},
+        {"re": "(share|send|tell|enter).{0,20}\\b(otp|mpin|upi pin|cvv|password)\\b", "w": 4},
+        {"re": "reward points?.{0,40}(expir|redeem|claim)", "w": 3}
+      ]
+    },
+    {
+      "id": "investment_scam",
+      "name": "Stock-market / crypto investment scam",
+      "how_it_works": "You are added to a WhatsApp/Telegram 'stock tips' group with a fake 'professor' or 'SEBI-registered advisor'. You install a fake trading app showing huge profits, but withdrawals need 'tax' or 'fees' and never arrive.",
+      "fact": "Check every advisor on sebi.gov.in. Real brokers let you withdraw to your own bank account without upfront 'taxes'.",
+      "cues": [
+        {"re": "(guaranteed|assured|fixed).{0,20}(return|profit|income)", "w": 4},
+        {"re": "\\d{2,4}\\s?%.{0,20}(return|profit|daily|weekly|monthly)", "w": 3},
+        {"re": "(stock|share|ipo|crypto|forex|trading).{0,40}(tips?|group|mentor|professor|vip|institutional account|block trade|allotment)", "w": 3},
+        {"re": "sebi.?registered|institutional (account|trading)|qib|otc trading", "w": 2},
+        {"re": "(withdraw|withdrawal).{0,40}(tax|fee|charges?|unfreeze|margin|deposit)", "w": 4},
+        {"re": "double (your )?money|paisa double|crorepati", "w": 4},
+        {"re": "usdt|binance p2p|crypto wallet", "w": 2}
+      ]
+    },
+    {
+      "id": "utility_disconnection",
+      "name": "Electricity / gas bill disconnection",
+      "how_it_works": "SMS claims your electricity will be cut tonight because the last bill wasn't updated, with a personal mobile number to call. The 'officer' gets you to install a remote-access app or pay a small fee via a link.",
+      "fact": "Electricity boards don't send disconnection threats from personal mobile numbers.",
+      "cues": [
+        {"re": "(electricity|bijli|power|light|gas) (connection|supply)?.{0,40}(disconnect|cut|kat)", "w": 4},
+        {"re": "(last|previous) month (bill|payment).{0,30}(not|nahi) (updated|update)", "w": 4},
+        {"re": "(contact|call).{0,20}(electricity )?officer", "w": 3},
+        {"re": "tonight|9[.:]30 ?pm|aaj raat", "w": 1}
+      ]
+    },
+    {
+      "id": "courier_customs",
+      "name": "Courier / customs / India Post",
+      "how_it_works": "Message says a parcel is held for an incomplete address or a customs duty, and asks you to pay a small fee via a link. The page steals card details.",
+      "fact": "India Post and couriers don't ask for redelivery fees through SMS links.",
+      "cues": [
+        {"re": "(parcel|package|shipment|consignment).{0,50}(held|on hold|pending|undeliver|returned|incomplete address)", "w": 4},
+        {"re": "(customs|clearance|redelivery|re-delivery).{0,20}(fee|charge|duty)", "w": 3},
+        {"re": "india ?post|speed ?post|fedex|dhl|blue ?dart|delhivery", "w": 1}
+      ]
+    },
+    {
+      "id": "lottery_prize",
+      "name": "Lottery / KBC / gift prize",
+      "how_it_works": "You've 'won' a KBC lottery, a car or a foreign gift, but must first pay 'processing', 'GST' or 'customs' charges.",
+      "fact": "Real prizes never require you to pay to receive them.",
+      "cues": [
+        {"re": "\\bkbc\\b|kaun banega|lucky draw|lottery|jackpot", "w": 4},
+        {"re": "(you|aap) (have )?(won|jeete|selected)", "w": 3},
+        {"re": "(processing|registration|gst|clearance|transfer) (fee|charge)s?", "w": 3},
+        {"re": "gift.{0,30}(from abroad|uk|usa|customs)", "w": 3}
+      ]
+    },
+    {
+      "id": "upi_refund_collect",
+      "name": "UPI refund / collect-request trick",
+      "how_it_works": "Scammer 'accidentally' sends money, or promises a refund/cashback, then sends a UPI collect request or QR code. Entering your PIN sends money OUT of your account.",
+      "fact": "You never need to enter your UPI PIN or scan a QR code to RECEIVE money.",
+      "cues": [
+        {"re": "(sent|transferred) (by )?mistake|galti se", "w": 4},
+        {"re": "(scan|enter (your )?(upi )?pin).{0,30}(receive|refund|get|cashback|prize)", "w": 5},
+        {"re": "(refund|cashback).{0,40}(collect request|approve|accept|scan|qr)", "w": 4},
+        {"re": "(army|cisf|crpf) (officer|jawan|person).{0,40}(buy|purchase|rent)", "w": 3},
+        {"re": "olx|quikr|facebook marketplace", "w": 1}
+      ]
+    },
+    {
+      "id": "sextortion",
+      "name": "Sextortion / video-call blackmail",
+      "how_it_works": "Unknown video call records you next to explicit content, then threatens to send it to your contacts or 'police' unless you pay.",
+      "fact": "Don't pay; payment invites more demands. Report at cybercrime.gov.in (women/child category is available) and block.",
+      "cues": [
+        {"re": "(video|nude|obscene|private).{0,30}(viral|upload|send to (your )?(family|contacts|friends))", "w": 5},
+        {"re": "youtube.{0,20}(officer|delete|remove).{0,30}video", "w": 4}
+      ]
+    },
+    {
+      "id": "loan_app",
+      "name": "Instant loan app / harassment",
+      "how_it_works": "Pre-approved loan with no documents via an unknown app, which harvests your contacts and photos, then extorts you with huge 'fees' and harassment.",
+      "fact": "Check the lender is an RBI-registered NBFC or bank (sachet.rbi.org.in).",
+      "cues": [
+        {"re": "pre.?approved.{0,20}loan|instant loan|loan (without|no) (documents|cibil)", "w": 3},
+        {"re": "loan.{0,40}(processing|file|insurance) (fee|charge)", "w": 3}
+      ]
+    }
+  ],
+  "general_red_flags": [
+    {"re": "urgent|immediately|turant|jaldi|last (chance|warning)|final notice", "flag": "Creates urgency to stop you thinking."},
+    {"re": "\\b(otp|mpin|upi pin|cvv)\\b", "flag": "Mentions OTP/PIN/CVV, which no legitimate party will ever ask for."},
+    {"re": "dear (customer|user|sir/madam)", "flag": "Generic greeting instead of your name."},
+    {"re": "(click|tap|open).{0,15}(link|below|here)", "flag": "Pushes you to click a link."},
+    {"re": "whatsapp.{0,20}(only|me)|(don't|do not) call", "flag": "Insists on WhatsApp-only contact."}
+  ]
+}
