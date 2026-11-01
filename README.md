@@ -43,7 +43,7 @@ If you're setting up from scratch: `python -m venv .venv`, `pip install -r requi
 2. Put `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` in `.env`.
 3. Expose your server: `ngrok http 8000`, then set `PUBLIC_BASE_URL=https://<your-id>.ngrok-free.app` in `.env` (used to verify Twilio's signature). Restart uvicorn.
 4. In the sandbox settings, set **"When a message comes in"** to `https://<your-id>.ngrok-free.app/webhook/whatsapp` (POST).
-5. Forward a scam message to the sandbox number. You get an instant "Investigating…" reply, then the verdict about a minute later. Send `reset` to start a new conversation.
+5. Forward a scam message to the sandbox number. You get an instant "Got it" reply, then the verdict about a minute later. Anything you send in the next few seconds (a follow-up question, more screenshots) is checked together with it, so you get one verdict rather than one per message. Twilio retries are ignored. Send `reset` to start a new conversation.
 
 **Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the agent work while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, reasoning, screenshots), put your number in `DEMO_NUMBERS` in `.env`.
 

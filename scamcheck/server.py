@@ -10,10 +10,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from scamcheck import config, otp_shield, whatsapp
+from scamcheck import config, inbox, otp_shield, whatsapp
 from scamcheck.agent import Investigation, format_for_whatsapp
 
 
@@ -116,7 +116,7 @@ def redact_for_feed(e: dict) -> dict | None:
     return None  # thinking, text, screenshots, status
 
 
-def _investigate(key: str, label: str, text: str, image, emit, public: bool = False) -> dict:
+def _investigate(key: str, label: str, text: str, images: list, emit, public: bool = False) -> dict:
     """Run one turn of a conversation. Only `public` sessions (demo numbers) stream their content to the live feed."""
     inv, lock = sessions.get(key)
 
@@ -129,9 +129,9 @@ def _investigate(key: str, label: str, text: str, image, emit, public: bool = Fa
         emit(e)
         publish(e)
 
-    publish({"type": "start", "text": text[:500], "has_image": bool(image)})
+    publish({"type": "start", "text": text[:500], "has_image": bool(images)})
     with lock:
-        return inv.run(text=text, image=image, emit=both)
+        return inv.run(text=text, images=images, emit=both)
 
 
 @app.get("/")
@@ -159,7 +159,7 @@ async def investigate(text: str = Form(""), session_id: str = Form("web"), image
         if hidden_codes:
             emit({"type": "notice", "message": otp_shield.warning(text)})
         try:
-            result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, img, emit)
+            result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, [img] if img else [], emit)
             emit({"type": "done", "result": result, "whatsapp_text": format_for_whatsapp(result)})
         except Exception as e:
             emit({"type": "error", "message": str(e)})
@@ -218,12 +218,16 @@ def _twiml(text: str) -> Response:
                     media_type="application/xml")
 
 
-def _whatsapp_job(sender: str, text: str, media_url: str | None, media_type: str | None) -> None:
+def _twiml_empty() -> Response:
+    return Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")
+
+
+def _whatsapp_job(sender: str, texts: list[str], media: list[inbox.Media]) -> None:
+    """Investigate everything one person sent in a burst, as one message, and send one reply."""
     try:
-        image = None
-        if media_url and (media_type or "").startswith("image/"):
-            image = whatsapp.download_media(media_url)
-        result = _investigate(f"wa:{sender}", _mask(sender), text, image, lambda e: None,
+        text = "\n\n".join(texts)
+        images = [whatsapp.download_media(url) for url, kind in media if kind.startswith("image/")]
+        result = _investigate(f"wa:{sender}", _mask(sender), text, images, lambda e: None,
                               public=sender in config.DEMO_NUMBERS)
         whatsapp.send(sender, format_for_whatsapp(result))
         if result.get("complaint"):
@@ -235,26 +239,44 @@ def _whatsapp_job(sender: str, text: str, media_url: str | None, media_type: str
         whatsapp.send(sender, "Sorry, the check failed. Don't click links or share OTPs meanwhile. If you've paid, call 1930 now.")
 
 
+seen_messages = inbox.SeenMessages()
+wa_inbox = inbox.Inbox(lambda sender, texts, media: _whatsapp_job(sender, texts, media))
+
+ACK = ("🔍 Got it. I'm checking the links, numbers and wording and will reply in about a minute.\n"
+       "Have more? Send it in the next few seconds (another screenshot, the number that called you) "
+       "and I'll check it all together.\n"
+       "Meanwhile: don't click the link, pay, or share any OTP.")
+
+
 @app.post("/webhook/whatsapp")
-async def whatsapp_webhook(request: Request, background: BackgroundTasks):
+async def whatsapp_webhook(request: Request):
     form = dict(await request.form())
     public_url = (config.PUBLIC_BASE_URL.rstrip("/") + request.url.path) if config.PUBLIC_BASE_URL else str(request.url)
     if not whatsapp.verify_signature(public_url, form, request.headers.get("X-Twilio-Signature", "")):
         raise HTTPException(403, "Invalid Twilio signature")
+    sid = form.get("MessageSid", "")
+    if sid and not seen_messages.first_time(sid):
+        return _twiml_empty()  # Twilio retrying a message we already have
 
     sender = form.get("From", "")
     body, hidden_codes = otp_shield.mask_otps((form.get("Body") or "").strip())  # before anything can log or store it
     if body.lower() in RESET_WORDS:
+        wa_inbox.drop(sender)
         sessions.reset(f"wa:{sender}")
         return _twiml("Started fresh. Forward me any suspicious message, link, screenshot, UPI ID or number.")
 
-    media_url = form.get("MediaUrl0") if int(form.get("NumMedia", "0") or 0) else None
-    if not body and not media_url:
+    media = [(form.get(f"MediaUrl{i}", ""), form.get(f"MediaContentType{i}", ""))  # an album carries up to 10
+             for i in range(int(form.get("NumMedia", "0") or 0))]
+    if not body and not media:
         return _twiml("Forward me a suspicious SMS, link, screenshot, UPI ID or phone number and I'll investigate it.")
+    if not body and not any(kind.startswith("image/") for _, kind in media):
+        return _twiml("I can check text, links and screenshots. Voice notes, videos and documents aren't supported "
+                      "yet, so please forward the message text or send a screenshot.")
 
     # Twilio expects a reply within 15 s; investigations take longer, so acknowledge now and send the verdict later.
-    background.add_task(_whatsapp_job, sender, body, media_url, form.get("MediaContentType0"))
-    if hidden_codes:  # the warning comes before the verdict: it matters more, and right now
-        return _twiml(otp_shield.warning(body) + "\n\n🔍 Now checking the rest of the message. I'll reply in about a minute.")
-    return _twiml("🔍 Investigating… I'll check the links, numbers and wording and reply in about a minute. "
-                  "Meanwhile: don't click the link, pay, or share any OTP.")
+    first_in_burst = wa_inbox.add(sender, body, media)
+    if hidden_codes:  # the warning always goes out at once: it matters more than the verdict, and right now
+        then = ("🔍 Now checking the rest of the message. I'll reply in about a minute." if first_in_burst
+                else "I've added the rest of this message to my check.")
+        return _twiml(otp_shield.warning(body) + "\n\n" + then)
+    return _twiml(ACK) if first_in_burst else _twiml_empty()

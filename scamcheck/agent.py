@@ -10,6 +10,7 @@ from scamcheck import config, otp_shield
 from scamcheck.tools import complaint, domain, extract, history, reputation, sandbox, scripts
 
 Event = Callable[[dict], None]
+MAX_IMAGES = 10  # one WhatsApp album
 
 SYSTEM_PROMPT = """You are ScamCheck, an investigator that helps people in India decide whether a message they received is a scam. People forward you SMS/WhatsApp texts, links, screenshots, UPI IDs or phone numbers.
 
@@ -170,11 +171,10 @@ class Investigation:
         self.verdict: dict | None = None
         self.complaint: dict | None = None
 
-    def run(self, text: str = "", image: tuple[bytes, str] | None = None, emit: Event = lambda e: None) -> dict:
+    def run(self, text: str = "", images: list[tuple[bytes, str]] | None = None, emit: Event = lambda e: None) -> dict:
         text, _ = otp_shield.mask_otps(text)  # the server masks first; this also covers the CLI
         content: list[dict] = []
-        if image:
-            data, media_type = image
+        for data, media_type in (images or [])[:MAX_IMAGES]:
             content.append({"type": "image", "source": {"type": "base64", "media_type": media_type,
                                                         "data": base64.standard_b64encode(data).decode()}})
         content.append({"type": "text", "text": f"<forwarded_by_user>\n{text or '(screenshot only)'}\n</forwarded_by_user>"})

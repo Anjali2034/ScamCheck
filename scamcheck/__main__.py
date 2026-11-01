@@ -28,11 +28,11 @@ def main() -> None:
     ap.add_argument("text", nargs="?", default="")
     ap.add_argument("--image")
     args = ap.parse_args()
-    image = None
+    images = []
     if args.image:
-        image = (open(args.image, "rb").read(), mimetypes.guess_type(args.image)[0] or "image/png")
+        images.append((open(args.image, "rb").read(), mimetypes.guess_type(args.image)[0] or "image/png"))
     inv = Investigation()
-    result = inv.run(text=args.text, image=image, emit=printer)
+    result = inv.run(text=args.text, images=images, emit=printer)
     print("\n" + "=" * 60 + "\n" + format_for_whatsapp(result))
     while True:
         try:

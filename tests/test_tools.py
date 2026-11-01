@@ -1,7 +1,9 @@
 """Offline tests for the deterministic tools (no API keys or network needed)."""
+import time
+
 import pytest
 
-from scamcheck import otp_shield
+from scamcheck import inbox, otp_shield
 from scamcheck.agent import TOOLS, format_for_whatsapp
 from scamcheck.tools import complaint, domain, extract, history, scripts
 from scamcheck.whatsapp import _chunks
@@ -206,6 +208,87 @@ def test_raw_otp_never_reaches_claude():
     except RuntimeError:
         pass
     assert "482913" not in StopClient.sent and "[OTP hidden]" in StopClient.sent
+
+
+def test_seen_messages_drops_twilio_retries():
+    seen = inbox.SeenMessages(max_items=2)
+    assert seen.first_time("SM1") and not seen.first_time("SM1")
+    assert seen.first_time("SM2") and seen.first_time("SM3")
+    assert seen.first_time("SM1")  # evicted once the memory is full, so it can't grow without bound
+
+
+def _collector():
+    calls = []
+    return calls, lambda sender, texts, media: calls.append((sender, texts, media))
+
+
+def test_inbox_merges_a_burst_into_one_batch():
+    calls, on_batch = _collector()
+    box = inbox.Inbox(on_batch, quiet_seconds=0.3)
+    assert box.add("a", "Your KYC expires today http://sbi-kyc.xyz", []) is True
+    assert box.add("a", "is this real??", [("u1", "image/jpeg")]) is False
+    assert box.add("b", "other person", []) is True  # senders never mix
+    time.sleep(0.8)
+    assert sorted(calls) == [("a", ["Your KYC expires today http://sbi-kyc.xyz", "is this real??"], [("u1", "image/jpeg")]),
+                             ("b", ["other person"], [])]
+
+
+def test_inbox_never_waits_past_the_cap():
+    calls, on_batch = _collector()
+    box = inbox.Inbox(on_batch, quiet_seconds=0.4, max_wait_seconds=0.6)
+    start = time.monotonic()
+    for i in range(4):  # keeps typing, each message inside the quiet window
+        box.add("a", f"msg {i}", [])
+        time.sleep(0.25)
+    assert calls and len(calls[0][1]) == 3 and time.monotonic() - start < 1.2
+    time.sleep(0.6)
+    assert [c[1] for c in calls] == [["msg 0", "msg 1", "msg 2"], ["msg 3"]]
+
+
+def test_inbox_reset_drops_the_queued_batch():
+    calls, on_batch = _collector()
+    box = inbox.Inbox(on_batch, quiet_seconds=0.2)
+    box.add("a", "half-typed thought", [])
+    box.drop("a")
+    time.sleep(0.4)
+    assert calls == []
+
+
+def test_whatsapp_webhook_one_message_in_one_reply_out(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from scamcheck import config, server
+
+    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "")
+    monkeypatch.setattr(config, "IS_PRODUCTION", False)
+    calls, on_batch = _collector()
+    monkeypatch.setattr(server, "_whatsapp_job", on_batch)
+    monkeypatch.setattr(server.wa_inbox, "quiet_seconds", 0.3)
+    client = TestClient(server.app)
+
+    def send(sid, sender="whatsapp:+917777777777", **form):
+        return client.post("/webhook/whatsapp", data={"MessageSid": sid, "From": sender, "NumMedia": "0", **form}).text
+
+    first = send("SM1", Body="Dear customer your SBI account is blocked http://sbi-kyc.xyz")
+    assert "Got it" in first
+    assert send("SM1", Body="Dear customer your SBI account is blocked http://sbi-kyc.xyz") == \
+        '<?xml version="1.0" encoding="UTF-8"?><Response/>'  # Twilio retry: silent
+    assert "<Message>" not in send("SM2", Body="is this real?")  # same burst: no second ack
+    otp_reply = send("SM3", Body="they also sent OTP 482913")
+    assert "one-time code" in otp_reply and "added the rest" in otp_reply  # warnings never wait
+    album = send("SM4", sender="whatsapp:+918888888888", NumMedia="3",
+                 **{f"MediaUrl{i}": f"https://api.twilio.com/m{i}" for i in range(3)},
+                 **{f"MediaContentType{i}": "image/jpeg" for i in range(3)})
+    assert "Got it" in album
+    voice = send("SM5", sender="whatsapp:+916666666666", NumMedia="1", MediaUrl0="u", MediaContentType0="audio/ogg")
+    assert "Voice notes" in voice
+    time.sleep(0.8)
+
+    by_sender = {c[0]: c for c in calls}
+    assert len(calls) == 2  # one burst, one album; the retry and the voice note start nothing
+    assert by_sender["whatsapp:+917777777777"][1] == [
+        "Dear customer your SBI account is blocked http://sbi-kyc.xyz", "is this real?", "they also sent OTP [OTP hidden]"]
+    assert len(by_sender["whatsapp:+918888888888"][2]) == 3  # every image in the album, not just the first
 
 
 def test_whatsapp_format_and_chunking():
