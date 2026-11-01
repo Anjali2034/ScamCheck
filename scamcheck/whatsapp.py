@@ -14,7 +14,7 @@ def is_configured() -> bool:
 
 def verify_signature(url: str, form: dict, signature: str) -> bool:
     if not config.TWILIO_AUTH_TOKEN:
-        return True  # local testing without Twilio credentials
+        return not config.IS_PRODUCTION  # unsigned requests are only for local testing, never on a public server
     return RequestValidator(config.TWILIO_AUTH_TOKEN).validate(url, form, signature)
 
 

@@ -76,6 +76,7 @@ Web UI ──────────▶ /api/investigate ────┼─▶ 
 
 - Forwarded messages and web pages are treated as **untrusted** (the prompt guards against injection, and page text is labeled).
 - The sandbox uses a fresh context and blocks downloads, permissions and requests to private/loopback IPs (SSRF), with hard timeouts. **For a public deployment, run the browser in a disposable container too.**
+- On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Anthropic key, Twilio credentials and an https `PUBLIC_BASE_URL`, and it rejects any webhook without a valid Twilio signature. Unsigned webhooks are accepted only when running locally, so you can test with curl.
 - ScamCheck never submits complaints and never asks for OTPs, PINs or passwords. It only drafts the complaint for the user to file.
 - Verdicts are advice, not certainty. When in doubt, the reply errs toward caution.
 

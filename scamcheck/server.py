@@ -6,6 +6,7 @@ import asyncio
 import json
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -15,7 +16,32 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from scamcheck import config, whatsapp
 from scamcheck.agent import Investigation, format_for_whatsapp
 
-app = FastAPI(title="ScamCheck")
+
+def missing_production_settings() -> list[str]:
+    """Settings a public deployment can't run safely without, each with what goes wrong if it's missing."""
+    missing = []
+    if not config.ANTHROPIC_API_KEY:
+        missing.append("ANTHROPIC_API_KEY: every investigation would fail")
+    if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN):
+        missing.append("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN: replies can't be sent and webhooks can't be verified")
+    if not config.PUBLIC_BASE_URL.startswith("https://"):
+        missing.append("PUBLIC_BASE_URL (https://...): Twilio signatures are computed on the public URL, "
+                       "so without it every real message is rejected")
+    return missing
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    if config.IS_PRODUCTION:
+        if missing := missing_production_settings():
+            raise RuntimeError("ScamCheck won't start in production without:\n  - " + "\n  - ".join(missing))
+    elif not config.TWILIO_AUTH_TOKEN:
+        print("[scamcheck] Development mode: WhatsApp webhook signatures are NOT checked (no TWILIO_AUTH_TOKEN). "
+              "Deploys on Render/Railway switch to production automatically; elsewhere set SCAMCHECK_ENV=production.")
+    yield
+
+
+app = FastAPI(title="ScamCheck", lifespan=lifespan)
 STATIC = Path(__file__).parent / "static"
 SESSION_TTL = 30 * 60
 

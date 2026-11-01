@@ -103,6 +103,50 @@ def test_live_feed_never_leaks_message_content():
     assert {"type": "tool_call", "name": "extract_indicators", "private": True} in shown
 
 
+def test_unsigned_webhooks_only_accepted_in_development(monkeypatch):
+    from scamcheck import config, whatsapp
+
+    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "")
+    monkeypatch.setattr(config, "IS_PRODUCTION", False)
+    assert whatsapp.verify_signature("http://localhost/webhook/whatsapp", {}, "")
+    monkeypatch.setattr(config, "IS_PRODUCTION", True)
+    assert not whatsapp.verify_signature("https://x.onrender.com/webhook/whatsapp", {}, "")
+
+
+def test_production_mode_fails_safe():
+    from scamcheck.config import is_production
+
+    assert not is_production({})  # laptop
+    assert not is_production({"SCAMCHECK_ENV": "development"})
+    assert not is_production({"SCAMCHECK_ENV": " Dev ", "RENDER": "true"})  # explicit opt-out wins
+    assert is_production({"RENDER": "true"})  # forgot to set it
+    assert is_production({"RAILWAY_ENVIRONMENT": "production", "SCAMCHECK_ENV": ""})  # blank in a dashboard
+    assert is_production({"SCAMCHECK_ENV": "prod"}) and is_production({"SCAMCHECK_ENV": "staging"})  # typos
+
+
+def test_production_refuses_to_start_without_its_settings(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from scamcheck import config, server
+
+    monkeypatch.setattr(config, "IS_PRODUCTION", True)
+    for k in ("ANTHROPIC_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"):
+        monkeypatch.setattr(config, k, "")
+    monkeypatch.setattr(config, "PUBLIC_BASE_URL", "http://not-https.example")
+    assert len(server.missing_production_settings()) == 3
+    try:
+        with TestClient(server.app):
+            raise AssertionError("server started without its production settings")
+    except RuntimeError as e:
+        assert "PUBLIC_BASE_URL" in str(e)
+
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "k")
+    monkeypatch.setattr(config, "TWILIO_ACCOUNT_SID", "AC1")
+    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "t")
+    monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://scamcheck.onrender.com")
+    assert server.missing_production_settings() == []
+
+
 def test_whatsapp_format_and_chunking():
     text = format_for_whatsapp({
         "verdict": "SCAM", "confidence": "high", "scam_type": "Fake KYC", "already_paid": True,
