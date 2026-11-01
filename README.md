@@ -77,6 +77,7 @@ Web UI ──────────▶ /api/investigate ────┼─▶ 
 - Forwarded messages and web pages are treated as **untrusted** (the prompt guards against injection, and page text is labeled).
 - The sandbox uses a fresh context and blocks downloads, permissions and requests to private/loopback IPs (SSRF), with hard timeouts. **For a public deployment, run the browser in a disposable container too.**
 - On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Anthropic key, Twilio credentials and an https `PUBLIC_BASE_URL`, and it rejects any webhook without a valid Twilio signature. Unsigned webhooks are accepted only when running locally, so you can test with curl.
+- **OTP shield.** People often forward a real OTP SMS to ask whether it's genuine. ScamCheck hides the code (OTPs, UPI PINs, MPINs) the moment a message arrives, before anything is logged, stored, streamed or sent to Claude. The person's first reply is a warning: never share a code, not even with ScamCheck, and if someone asked for it, it's a scam. Amounts, phone numbers, dates and postal PIN codes are left alone, because they're evidence.
 - ScamCheck never submits complaints and never asks for OTPs, PINs or passwords. It only drafts the complaint for the user to file.
 - Verdicts are advice, not certainty. When in doubt, the reply errs toward caution.
 

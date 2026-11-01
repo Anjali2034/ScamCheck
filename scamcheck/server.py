@@ -13,7 +13,7 @@ from xml.sax.saxutils import escape
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from scamcheck import config, whatsapp
+from scamcheck import config, otp_shield, whatsapp
 from scamcheck.agent import Investigation, format_for_whatsapp
 
 
@@ -149,12 +149,15 @@ async def investigate(text: str = Form(""), session_id: str = Form("web"), image
         img = (data, image.content_type or "image/jpeg")
     if not text.strip() and not img:
         raise HTTPException(400, "Send some text or an image")
+    text, hidden_codes = otp_shield.mask_otps(text)  # before anything can log, store or stream it
 
     loop = asyncio.get_running_loop()
     q: asyncio.Queue = asyncio.Queue()
     emit = lambda e: loop.call_soon_threadsafe(q.put_nowait, e)
 
     async def worker():
+        if hidden_codes:
+            emit({"type": "notice", "message": otp_shield.warning(text)})
         try:
             result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, img, emit)
             emit({"type": "done", "result": result, "whatsapp_text": format_for_whatsapp(result)})
@@ -240,7 +243,7 @@ async def whatsapp_webhook(request: Request, background: BackgroundTasks):
         raise HTTPException(403, "Invalid Twilio signature")
 
     sender = form.get("From", "")
-    body = (form.get("Body") or "").strip()
+    body, hidden_codes = otp_shield.mask_otps((form.get("Body") or "").strip())  # before anything can log or store it
     if body.lower() in RESET_WORDS:
         sessions.reset(f"wa:{sender}")
         return _twiml("Started fresh. Forward me any suspicious message, link, screenshot, UPI ID or number.")
@@ -251,5 +254,7 @@ async def whatsapp_webhook(request: Request, background: BackgroundTasks):
 
     # Twilio expects a reply within 15 s; investigations take longer, so acknowledge now and send the verdict later.
     background.add_task(_whatsapp_job, sender, body, media_url, form.get("MediaContentType0"))
+    if hidden_codes:  # the warning comes before the verdict: it matters more, and right now
+        return _twiml(otp_shield.warning(body) + "\n\n🔍 Now checking the rest of the message. I'll reply in about a minute.")
     return _twiml("🔍 Investigating… I'll check the links, numbers and wording and reply in about a minute. "
                   "Meanwhile: don't click the link, pay, or share any OTP.")

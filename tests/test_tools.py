@@ -1,4 +1,7 @@
 """Offline tests for the deterministic tools (no API keys or network needed)."""
+import pytest
+
+from scamcheck import otp_shield
 from scamcheck.agent import TOOLS, format_for_whatsapp
 from scamcheck.tools import complaint, domain, extract, history, scripts
 from scamcheck.whatsapp import _chunks
@@ -145,6 +148,64 @@ def test_production_refuses_to_start_without_its_settings(monkeypatch):
     monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "t")
     monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://scamcheck.onrender.com")
     assert server.missing_production_settings() == []
+
+
+@pytest.mark.parametrize("text, secret", [
+    ("Your OTP for HDFC Bank NetBanking login is 482913. Do not share it with anyone. -HDFC Bank", "482913"),
+    ("482913 is your OTP for txn of Rs. 4,999 at AMAZON. Valid for 10 mins.", "482913"),
+    ("G-482913 is your Google verification code.", "482913"),
+    ("Your Swiggy login code is 4829", "4829"),
+    ("Use one-time password 48291375 to verify", "48291375"),
+    ("sir my UPI PIN is 4829, please process the refund fast", "4829"),
+    ("aapka ओटीपी 482913 hai", "482913"),
+])
+def test_otp_shield_hides_codes(text, secret):
+    masked, n = otp_shield.mask_otps(text)
+    assert secret not in masked and otp_shield.MASK in masked and n == 1
+
+
+@pytest.mark.parametrize("text", [
+    "Pay ₹4999 to activate your KYC",                           # amount
+    "Share the OTP with our agent at 98765 43210",              # split phone number is evidence
+    "Delivery to PIN code 110001 failed, share OTP to reschedule",  # postal PIN code
+    "Order #482913 has shipped",                                # no code keyword
+    "OTP sent on 12/11/2026 for A/c XX4521",                    # date, account tail
+    "Your OTP for txn of Rs. 4999 at AMAZON",                   # amount near the keyword
+    "OTP needed to release ₹1,20,000 refund",                   # Indian-grouped amount
+    "Enter OTP to confirm payment of INR 25000.50",             # decimal amount
+])
+def test_otp_shield_leaves_evidence_alone(text):
+    assert otp_shield.mask_otps(text) == (text, 0)
+
+
+def test_otp_shield_keeps_the_rest_of_the_message():
+    masked, _ = otp_shield.mask_otps("OTP 482913. Click http://sbi-kyc.xyz and call +855 96 123 4567")
+    assert masked == "OTP [OTP hidden]. Click http://sbi-kyc.xyz and call +855 96 123 4567"
+
+
+def test_otp_warning_speaks_the_users_script():
+    assert "Never share" in otp_shield.warning("Your OTP is [OTP hidden]")
+    assert "कभी किसी को न भेजें" in otp_shield.warning("आपका OTP [OTP hidden] है")
+
+
+def test_raw_otp_never_reaches_claude():
+    from scamcheck.agent import Investigation
+
+    class StopClient:  # captures what would be sent to the API, then stops the run
+        sent = None
+
+        class beta:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    StopClient.sent = str(kw["messages"])
+                    raise RuntimeError("stop")
+
+    try:
+        Investigation(client=StopClient).run("Your OTP is 482913, the bank agent asked for it")
+    except RuntimeError:
+        pass
+    assert "482913" not in StopClient.sent and "[OTP hidden]" in StopClient.sent
 
 
 def test_whatsapp_format_and_chunking():

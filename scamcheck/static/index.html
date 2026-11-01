@@ -43,6 +43,7 @@
   .ev.tool_call { border-color: var(--accent); }
   .ev.tool_result { border-color: var(--ok); }
   .ev.error { border-color: var(--danger); }
+  .ev.notice { border-color: var(--warn); border-left-width: 5px; white-space: pre-line; font-weight: 500; }
   .ev.start { border-color: var(--ink); }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   pre { background: var(--code); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; }
@@ -103,7 +104,7 @@ const SAMPLES = {
   "Digital arrest": "This is Inspector Rajesh from Mumbai Cyber Crime. A FedEx parcel with MDMA booked on your Aadhaar was seized. An arrest warrant has been issued. Stay on video call and do not tell your family. Call +855 96 123 4567.",
   "Task scam": "Hi! I am Priya, HR from Amazon. Part time job, earn ₹3000 daily by liking YouTube videos. Join Telegram t.me/amz_task_earn for prepaid task bonus.",
   "Electricity": "Dear consumer your electricity power will be disconnected tonight at 9.30 pm because your previous month bill was not update. Please immediately contact our electricity officer 9876543210",
-  "Legit-looking": "Your OTP for HDFC Bank NetBanking login is 123456. Do not share it with anyone. -HDFC Bank",
+  "Real OTP forwarded": "Your OTP for HDFC Bank NetBanking login is 482913. Do not share it with anyone. -HDFC Bank",
   "UPI ID": "pay refund to cashback.reward2024@ybl to get your ₹5000 refund"
 };
 const $ = s => document.querySelector(s);
@@ -145,6 +146,7 @@ function renderEvent(e, into) {
     case "screenshot":
       d.className += " shot"; d.innerHTML = `<div class="t">${sess}📸 Sandbox screenshot</div><span class="muted">${esc(e.url)}</span><img alt="Screenshot of ${esc(e.url)}" src="data:image/jpeg;base64,${e.data}">`; break;
     case "error": d.innerHTML = `<div class="t">${sess}Error</div>${esc(e.message)}`; break;
+    case "notice": d.innerHTML = `<div class="t">${sess}Warning sent first</div>${esc(e.message.replace(/\*/g, ""))}`; break;
     case "verdict": if (into.id !== "live") return;
       d.innerHTML = `<div class="t">${sess}Verdict</div><b>${esc(e.verdict.verdict)}</b> ${esc(e.verdict.scam_type)}`; break;
     default: return;
