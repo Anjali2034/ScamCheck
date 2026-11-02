@@ -140,6 +140,12 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/demo")
+def demo():
+    """The developer view: every check as it runs, plus the live feed of all channels."""
+    return FileResponse(STATIC / "demo.html")
+
+
 @app.post("/api/investigate")
 async def investigate(text: str = Form(""), session_id: str = Form("web"), image: UploadFile | None = File(None)):
     img = None

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScamCheck</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #14171c; --muted: #5d6673; --line: #e3e6ea;
+    --accent: #2457d6; --danger: #c62828; --warn: #b26a00; --ok: #1b7a3d; --code: #f1f3f6;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --panel: #171b21; --ink: #e8ebef; --muted: #98a2b0; --line: #2a3039;
+      --accent: #6f9bff; --danger: #ff6b6b; --warn: #f0a742; --ok: #4cc77a; --code: #1f242c; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 0; color: var(--muted); }
+  #keys { margin-left: auto; font-size: 13px; color: var(--muted); }
+  #keys span { margin-left: 10px; }
+  main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 170px; resize: vertical; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; }
+  input[type=file] { margin: 10px 0; max-width: 100%; }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .samples { margin-top: 16px; }
+  .samples button { font-size: 13px; padding: 5px 10px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .tabs button.active { background: var(--ink); color: var(--panel); }
+  #trace, #live { display: flex; flex-direction: column; gap: 8px; }
+  .ev { border-left: 3px solid var(--line); padding: 6px 10px; background: var(--panel); border-radius: 0 6px 6px 0; }
+  .ev .t { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .ev.thinking { border-color: #8a6fd1; font-style: italic; color: var(--muted); }
+  .ev.tool_call { border-color: var(--accent); }
+  .ev.tool_result { border-color: var(--ok); }
+  .ev.error { border-color: var(--danger); }
+  .ev.notice { border-color: var(--warn); border-left-width: 5px; white-space: pre-line; font-weight: 500; }
+  .ev.start { border-color: var(--ink); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  pre { background: var(--code); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; }
+  code { font-size: 13px; }
+  .shot img { max-width: 260px; border: 1px solid var(--line); border-radius: 8px; display: block; margin-top: 6px; }
+  .verdict { border-radius: 10px; padding: 16px; margin-top: 14px; border: 2px solid var(--line); background: var(--panel); }
+  .verdict.bad { border-color: var(--danger); } .verdict.warn { border-color: var(--warn); } .verdict.good { border-color: var(--ok); }
+  .verdict h2 { margin: 0 0 6px; font-size: 22px; }
+  .verdict.bad h2 { color: var(--danger); } .verdict.warn h2 { color: var(--warn); } .verdict.good h2 { color: var(--ok); }
+  .ev-list { list-style: none; padding: 0; margin: 10px 0 0; }
+  .ev-list li { padding: 4px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .sev { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-right: 6px; text-transform: uppercase; }
+  .sev.critical, .sev.high { background: var(--danger); color: #fff; } .sev.medium { background: var(--warn); color: #fff; }
+  .sev.low { background: var(--line); color: var(--ink); } .sev.reassuring { background: var(--ok); color: #fff; }
+  .wa { background: #dcf8c6; color: #111; border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; margin-top: 10px; font-size: 14px; }
+  .muted { color: var(--muted); }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s 1s linear infinite; vertical-align: -1px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .sess { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ ScamCheck</h1>
+  <p>Forward a suspicious message, link or screenshot and watch the agent investigate it.</p>
+  <div id="keys"></div>
+</header>
+<main>
+  <section class="panel">
+    <form id="f">
+      <label for="text">Suspicious message, link, UPI ID or phone number</label>
+      <textarea id="text" name="text" placeholder="Paste the SMS / WhatsApp message here…"></textarea>
+      <label for="image" style="margin-top:10px">…or a screenshot</label>
+      <input type="file" id="image" name="image" accept="image/*">
+      <div class="row">
+        <button class="primary" id="go" type="submit">Investigate</button>
+        <button type="button" id="reset" title="Forget this conversation">New conversation</button>
+      </div>
+      <p class="muted" style="font-size:13px">Follow-ups keep context. Try “I already paid ₹4,999 via PhonePe” after a scam verdict.</p>
+    </form>
+    <div class="samples">
+      <label>Sample messages (fictional)</label>
+      <div class="row" id="samples"></div>
+    </div>
+  </section>
+  <section>
+    <div class="tabs">
+      <button id="tab-trace" class="active">This investigation</button>
+      <button id="tab-live" title="Everyone's checks, live. Message content stays private except for demo numbers.">Live feed (all channels, incl. WhatsApp)</button>
+    </div>
+    <div id="pane-trace"><div id="trace"><p class="muted">The agent's reasoning, tool calls and evidence will appear here.</p></div><div id="result"></div></div>
+    <div id="pane-live" hidden><div id="live"></div></div>
+  </section>
+</main>
+<script>
+const SAMPLES = {
+  "Fake KYC": "Dear Customer, your SBI YONO account will be BLOCKED today due to incomplete KYC. Update PAN immediately: http://sbi-kyc-update.xyz/login",
+  "Digital arrest": "This is Inspector Rajesh from Mumbai Cyber Crime. A FedEx parcel with MDMA booked on your Aadhaar was seized. An arrest warrant has been issued. Stay on video call and do not tell your family. Call +855 96 123 4567.",
+  "Task scam": "Hi! I am Priya, HR from Amazon. Part time job, earn ₹3000 daily by liking YouTube videos. Join Telegram t.me/amz_task_earn for prepaid task bonus.",
+  "Electricity": "Dear consumer your electricity power will be disconnected tonight at 9.30 pm because your previous month bill was not update. Please immediately contact our electricity officer 9876543210",
+  "Real OTP forwarded": "Your OTP for HDFC Bank NetBanking login is 482913. Do not share it with anyone. -HDFC Bank",
+  "UPI ID": "pay refund to cashback.reward2024@ybl to get your ₹5000 refund"
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const sid = (() => { try { let v = localStorage.getItem("sid"); if (!v) { v = Math.random().toString(36).slice(2); localStorage.setItem("sid", v); } return v; } catch { return "web"; } })();
+const TOOL_LABEL = {
+  extract_indicators: "Extracting links, numbers and UPI IDs", check_domain: "Checking domain age and brand impersonation",
+  check_url_reputation: "Querying Safe Browsing and VirusTotal", visit_in_sandbox: "Opening link in sandboxed browser",
+  match_scam_scripts: "Matching against known scam scripts", analyse_phone_number: "Analysing phone number",
+  check_indicator_history: "Checking earlier reports", draft_cybercrime_complaint: "Drafting cybercrime.gov.in complaint",
+  read_screenshot: "Reading the screenshot (on this server)",
+  submit_verdict: "Submitting verdict"
+};
+
+for (const [k, v] of Object.entries(SAMPLES)) {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = k;
+  b.onclick = () => { $("#text").value = v; }; $("#samples").append(b);
+}
+
+fetch("/api/health").then(r => r.json()).then(h => {
+  $("#keys").innerHTML = `model: <code>${esc(h.model)}</code>` +
+    ["safe_browsing", "virustotal", "whatsapp"].map(k => `<span>${h[k] ? "🟢" : "⚪"} ${k.replace("_", " ")}</span>`).join("");
+}).catch(() => {});
+
+function renderEvent(e, into) {
+  const d = document.createElement("div"); d.className = "ev " + e.type;
+  const sess = e.session && into.id === "live" ? `<span class="sess">[${esc(e.session)}]</span> ` : "";
+  switch (e.type) {
+    case "start": d.innerHTML = `<div class="t">${sess}New message${e.has_image ? " + screenshot" : ""}</div>` +
+      (e.private ? `<span class="muted">🔒 Message hidden. Only the checks and the verdict are shown.</span>` : esc(e.text)); break;
+    case "thinking": d.innerHTML = `<div class="t">${sess}Reasoning</div>${esc(e.text)}`; break;
+    case "text": d.innerHTML = `<div class="t">${sess}Agent</div>${esc(e.text)}`; break;
+    case "tool_call":
+      if (e.name === "submit_verdict") return;
+      d.innerHTML = `<div class="t">${sess}🔧 ${esc(TOOL_LABEL[e.name] || e.name)}</div>` +
+        (e.private ? "" : `<code>${esc(e.name)}(${esc(Object.values(e.input || {}).map(v => typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)).join(", "))})</code>`); break;
+    case "tool_result":
+      d.innerHTML = `<div class="t">${sess}✓ ${esc(e.name)}</div>` +
+        (e.private ? "" : `<details><summary>${esc(summarise(e))}</summary><pre>${esc(JSON.stringify(e.result, null, 2))}</pre></details>`); break;
+    case "screenshot":
+      d.className += " shot"; d.innerHTML = `<div class="t">${sess}📸 Sandbox screenshot</div><span class="muted">${esc(e.url)}</span><img alt="Screenshot of ${esc(e.url)}" src="data:image/jpeg;base64,${e.data}">`; break;
+    case "error": d.innerHTML = `<div class="t">${sess}Error</div>${esc(e.message)}`; break;
+    case "notice": d.innerHTML = `<div class="t">${sess}Warning sent first</div>${esc(e.message.replace(/\*/g, ""))}`; break;
+    case "verdict": if (into.id !== "live") return;
+      d.innerHTML = `<div class="t">${sess}Verdict</div><b>${esc(e.verdict.verdict)}</b> ${esc(e.verdict.scam_type)}`; break;
+    default: return;
+  }
+  into.append(d); d.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function summarise(e) {
+  const r = e.result || {};
+  if (r.error) return "error: " + r.error;
+  switch (e.name) {
+    case "extract_indicators": return `${r.urls?.length || 0} links, ${r.phone_numbers?.length || 0} numbers, ${r.upi_ids?.length || 0} UPI IDs`;
+    case "check_domain": return r.is_official_domain ? `Official ${r.brand} domain` :
+      `${r.findings?.length || 0} red flags; age: ${r.registration?.age_days ?? "unknown"} days`;
+    case "check_url_reputation": return `Safe Browsing: ${r.safe_browsing?.status === "ok" ? (r.safe_browsing.flagged ? "FLAGGED" : "not listed") : r.safe_browsing?.status}; VirusTotal: ${r.virustotal?.status}`;
+    case "visit_in_sandbox": return r.status === "ok" ? `“${r.title || "untitled"}” → ${r.final_url}` + (r.asks_password || r.asks_otp || r.asks_card ? " ⚠ asks for credentials" : "") : `${r.status}: ${r.error || ""}`;
+    case "match_scam_scripts": return r.matches?.length ? r.matches.map(m => `${m.script} (${m.strength})`).join(", ") : "no known script matched";
+    case "analyse_phone_number": return `${r.country}; seen ${r.history?.times_seen || 0}× before`;
+    case "check_indicator_history": return `seen ${r.times_seen}× before`;
+    case "draft_cybercrime_complaint": return "Complaint draft ready";
+    case "read_screenshot": return r.status === "ok" ? `read ${r.text.length} characters` + (r.otp_codes_hidden ? ", OTP hidden" : "") :
+      { no_text: "no text found", unreadable: "not a readable image", unavailable: "OCR not installed" }[r.status] || r.status;
+  }
+  return "details";
+}
+
+function renderResult(res, waText) {
+  const box = $("#result"); box.innerHTML = "";
+  if (!res) return;
+  if (!res.verdict) { box.innerHTML = `<div class="verdict"><p>${esc(res.user_message)}</p></div>`; return; }
+  const cls = ["SCAM", "LIKELY_SCAM"].includes(res.verdict) ? "bad" : res.verdict === "SUSPICIOUS" ? "warn" : ["SAFE", "LIKELY_SAFE"].includes(res.verdict) ? "good" : "";
+  box.innerHTML = `<div class="verdict ${cls}">
+    <h2>${esc(res.verdict.replace("_", " "))}</h2>
+    <div class="muted">${esc(res.scam_type || "")} · confidence ${esc(res.confidence)}</div>
+    ${res.already_paid ? `<p><b>📞 Call 1930 now</b>, then report at cybercrime.gov.in.</p>` : ""}
+    <ul class="ev-list">${(res.evidence || []).map(x => `<li><span class="sev ${esc(x.severity)}">${esc(x.severity)}</span>${esc(x.finding)} <span class="muted">(${esc(x.source)})</span></li>`).join("")}</ul>
+    <label style="margin-top:12px">What the user receives on WhatsApp</label>
+    <div class="wa">${esc(waText)}</div>
+    ${res.complaint ? `<label style="margin-top:12px">Complaint draft</label><pre>${esc(res.complaint.complaint_text)}</pre>
+      <ol>${res.complaint.urgent_steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+  </div>`;
+}
+
+async function readNdjson(resp, onEvent) {
+  const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i; while ((i = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (line.trim()) onEvent(JSON.parse(line)); }
+  }
+}
+
+$("#f").onsubmit = async ev => {
+  ev.preventDefault();
+  const fd = new FormData($("#f")); fd.append("session_id", sid);
+  if (!$("#image").files.length) fd.delete("image");
+  $("#go").disabled = true; $("#result").innerHTML = "";
+  const trace = $("#trace"); trace.innerHTML = `<p class="muted" id="st"><span class="spinner"></span> Starting investigation…</p>`;
+  try {
+    const resp = await fetch("/api/investigate", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error((await resp.json()).detail || resp.statusText);
+    await readNdjson(resp, e => {
+      if (e.type === "status") { const s = $("#st"); if (s) s.innerHTML = `<span class="spinner"></span> ${esc(e.message)}`; return; }
+      if (e.type === "done") { $("#st")?.remove(); renderResult(e.result, e.whatsapp_text); return; }
+      renderEvent(e, trace); const s = $("#st"); if (s) trace.append(s);
+    });
+  } catch (err) { renderEvent({ type: "error", message: err.message }, trace); $("#st")?.remove(); }
+  $("#go").disabled = false;
+};
+
+$("#reset").onclick = async () => {
+  const fd = new FormData(); fd.append("session_id", sid);
+  await fetch("/api/reset", { method: "POST", body: fd });
+  $("#trace").innerHTML = `<p class="muted">New conversation started.</p>`; $("#result").innerHTML = ""; $("#text").value = "";
+};
+
+let liveStarted = false;
+function tab(which) {
+  $("#tab-trace").classList.toggle("active", which === "trace"); $("#tab-live").classList.toggle("active", which === "live");
+  $("#pane-trace").hidden = which !== "trace"; $("#pane-live").hidden = which !== "live";
+  if (which === "live" && !liveStarted) {
+    liveStarted = true;
+    (async function connect() {
+      try { await readNdjson(await fetch("/api/live"), e => { if (e.type !== "ping" && e.type !== "status") renderEvent(e, $("#live")); }); }
+      catch {}
+      setTimeout(connect, 2000);
+    })();
+  }
+}
+$("#tab-trace").onclick = () => tab("trace"); $("#tab-live").onclick = () => tab("live");
+</script>
+</body>
+</html>

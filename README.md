@@ -17,7 +17,7 @@ A free scam checker for people in India. Send it a suspicious SMS, screenshot, l
 | `check_domain` | Brand impersonation of ~30 Indian banks, UPI apps, govt sites and couriers (keyword, typosquat and homoglyph checks), shorteners, risky TLDs, punycode, free hosting, **domain age via RDAP** | none |
 | `check_url_reputation` | Google Safe Browsing + VirusTotal (URL and domain reports) | free API keys |
 | `visit_in_sandbox` | Opens the link in a throwaway headless phone browser (Playwright): redirect chain, final URL, whether it asks for password/OTP/card/Aadhaar, APK downloads, screenshot. Skipped for official bank domains. | none |
-| `match_scam_scripts` | 10 known scripts: digital arrest, task scam, fake KYC, investment, electricity cut-off, courier, KBC lottery, UPI refund/collect, sextortion, loan apps (English + Hinglish cues) | none |
+| `match_scam_scripts` | 10 known scripts: digital arrest, task scam, fake KYC, investment, electricity cut-off, courier, KBC lottery, UPI refund/collect, sextortion, loan apps (English, Hinglish and Hindi cues) | none |
 | `analyse_phone_number` | Foreign numbers posing as Indian agencies, scam-compound regions, 140-series | none |
 | `check_indicator_history` | Whether this UPI ID/number/domain appeared in earlier ScamCheck verdicts (local SQLite) | none |
 
@@ -35,7 +35,9 @@ copy .env.example .env                # optional: add a free GROQ_API_KEY
 uvicorn scamcheck.server:app --reload --port 8000
 ```
 
-Open http://localhost:8000, click a sample message, and watch the trace. With no keys at all, everything still works on rules alone.
+Open http://localhost:8000 for the **public page**, the one real users get: paste a message or add a screenshot and get a plain verdict, what to do, and, if they've paid, a tap-to-call 1930 button and a complaint to copy. It's mobile-first, in English or Hindi (the verdict follows the language the message was written in, Hinglish included), and works in dark mode.
+
+Open http://localhost:8000/demo for the **developer view**: sample messages, every check's raw result as it runs, and the live feed. With no keys at all, everything still works on rules alone.
 
 **Screenshots** need Tesseract (free). On Windows: `winget install UB-Mannheim.TesseractOCR`; ScamCheck finds it in `C:\Program Files\Tesseract-OCR`. For Hindi, put `eng.traineddata` and [`hin.traineddata`](https://github.com/tesseract-ocr/tessdata/raw/main/hin.traineddata) in `runtime/tessdata/`. On Linux: `apt install tesseract-ocr tesseract-ocr-hin`. Without Tesseract, a screenshot gets a polite "please paste the text instead".
 
@@ -56,7 +58,7 @@ No phone number or SIM needed: Meta gives every developer app a free WhatsApp te
 
 Replies never contain a tappable scam link (they're written as `sbi-kyc[.]xyz`) and link previews are off, so a warning can't become a one-tap way back to the scam.
 
-**Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the checks run while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, screenshots, results), put your number in `DEMO_NUMBERS` in `.env`.
+**Demo tip:** open the **Live feed** tab at `/demo`. Every investigation streams there, so an audience can watch the checks run while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, screenshots, results), put your number in `DEMO_NUMBERS` in `.env`.
 
 ## Getting the free API keys
 

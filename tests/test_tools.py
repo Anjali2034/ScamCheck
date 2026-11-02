@@ -519,3 +519,19 @@ def test_whatsapp_format_and_chunking():
     assert "*Scam*" in text and "1930" in text and "2 days old" in text
     chunks = _chunks("line\n" * 2000)
     assert all(len(c) <= 4096 for c in chunks) and "".join(chunks).count("line") == 2000
+
+
+def test_public_page_and_developer_view_are_separate():
+    from fastapi.testclient import TestClient
+
+    from scamcheck import server
+
+    client = TestClient(server.app)
+    public, demo = client.get("/").text, client.get("/demo").text
+    assert "Is this a scam?" in public and "tel:1930" in public and "Live feed" not in public
+    assert "Live feed" in demo
+
+
+def test_result_says_which_language_to_show(offline):
+    assert Investigation().run(FAKE_KYC)["language"] == "English"
+    assert Investigation().run("आपका बिजली कनेक्शन आज रात काट दिया जाएगा, तुरंत 9876543210 पर कॉल करें")["language"] == "Hindi"

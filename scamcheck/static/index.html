@@ -3,196 +3,243 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ScamCheck</title>
+<meta name="description" content="Free scam checker for India. Paste a suspicious SMS, WhatsApp message, link, UPI ID or number and get a clear answer in seconds.">
+<meta name="referrer" content="no-referrer">
+<title>ScamCheck: is this a scam?</title>
 <style>
   :root {
-    --bg: #f6f7f9; --panel: #fff; --ink: #14171c; --muted: #5d6673; --line: #e3e6ea;
-    --accent: #2457d6; --danger: #c62828; --warn: #b26a00; --ok: #1b7a3d; --code: #f1f3f6;
-    color-scheme: light;
+    --bg: #f5f6f8; --panel: #fff; --ink: #14171c; --muted: #5a6370; --line: #dfe3e8; --accent: #1f4fd1;
+    --bad: #b3261e; --bad-bg: #fdecea; --warn: #8a5300; --warn-bg: #fff4e0; --ok: #1b6e38; --ok-bg: #e7f5ec;
+    --neutral-bg: #eef1f5; color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1216; --panel: #171b21; --ink: #e8ebef; --muted: #98a2b0; --line: #2a3039;
-      --accent: #6f9bff; --danger: #ff6b6b; --warn: #f0a742; --ok: #4cc77a; --code: #1f242c; color-scheme: dark; }
+    :root { --bg: #0f1216; --panel: #181c22; --ink: #e9ecf0; --muted: #a0a9b6; --line: #2c333d; --accent: #7aa2ff;
+      --bad: #ff8a80; --bad-bg: #3a1714; --warn: #ffc266; --warn-bg: #362509; --ok: #6fd796; --ok-bg: #12301d;
+      --neutral-bg: #222831; color-scheme: dark; }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
-  header h1 { margin: 0; font-size: 20px; }
-  header p { margin: 0; color: var(--muted); }
-  #keys { margin-left: auto; font-size: 13px; color: var(--muted); }
-  #keys span { margin-left: 10px; }
-  main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-  @media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 16px; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
-  textarea { width: 100%; min-height: 170px; resize: vertical; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", "Noto Sans", "Noto Sans Devanagari", sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+  header b { font-size: 19px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 8px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 14px; }
+  textarea { width: 100%; min-height: 140px; resize: vertical; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
     background: var(--bg); color: var(--ink); font: inherit; }
-  input[type=file] { margin: 10px 0; max-width: 100%; }
-  button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 14px; cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .samples { margin-top: 16px; }
-  .samples button { font-size: 13px; padding: 5px 10px; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
-  .tabs button.active { background: var(--ink); color: var(--panel); }
-  #trace, #live { display: flex; flex-direction: column; gap: 8px; }
-  .ev { border-left: 3px solid var(--line); padding: 6px 10px; background: var(--panel); border-radius: 0 6px 6px 0; }
-  .ev .t { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
-  .ev.thinking { border-color: #8a6fd1; font-style: italic; color: var(--muted); }
-  .ev.tool_call { border-color: var(--accent); }
-  .ev.tool_result { border-color: var(--ok); }
-  .ev.error { border-color: var(--danger); }
-  .ev.notice { border-color: var(--warn); border-left-width: 5px; white-space: pre-line; font-weight: 500; }
-  .ev.start { border-color: var(--ink); }
-  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-  pre { background: var(--code); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; }
-  code { font-size: 13px; }
-  .shot img { max-width: 260px; border: 1px solid var(--line); border-radius: 8px; display: block; margin-top: 6px; }
-  .verdict { border-radius: 10px; padding: 16px; margin-top: 14px; border: 2px solid var(--line); background: var(--panel); }
-  .verdict.bad { border-color: var(--danger); } .verdict.warn { border-color: var(--warn); } .verdict.good { border-color: var(--ok); }
-  .verdict h2 { margin: 0 0 6px; font-size: 22px; }
-  .verdict.bad h2 { color: var(--danger); } .verdict.warn h2 { color: var(--warn); } .verdict.good h2 { color: var(--ok); }
-  .ev-list { list-style: none; padding: 0; margin: 10px 0 0; }
-  .ev-list li { padding: 4px 0; border-top: 1px solid var(--line); font-size: 14px; }
-  .sev { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-right: 6px; text-transform: uppercase; }
-  .sev.critical, .sev.high { background: var(--danger); color: #fff; } .sev.medium { background: var(--warn); color: #fff; }
-  .sev.low { background: var(--line); color: var(--ink); } .sev.reassuring { background: var(--ok); color: #fff; }
-  .wa { background: #dcf8c6; color: #111; border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; margin-top: 10px; font-size: 14px; }
-  .muted { color: var(--muted); }
-  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s 1s linear infinite; vertical-align: -1px; }
-  @keyframes s { to { transform: rotate(360deg); } }
-  .sess { font-size: 12px; color: var(--muted); }
+  textarea:focus, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button, .btn { font: inherit; min-height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); padding: 10px 16px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+    justify-content: center; gap: 8px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; width: 100%; font-size: 18px; }
+  @media (prefers-color-scheme: dark) { .primary { color: #0b1020; } }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .row > * { flex: 1 1 auto; }
+  .lang { min-height: 40px; padding: 6px 12px; font-size: 15px; }
+  .thumb { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; font-size: 15px; color: var(--muted); }
+  .thumb img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+  .thumb button { min-height: 40px; margin-left: auto; }
+  .hint { font-size: 15px; color: var(--muted); margin: 6px 0 0; }
+  .msg { padding: 12px 14px; border-radius: 10px; background: var(--neutral-bg); margin-top: 12px; }
+  .msg.err { background: var(--bad-bg); color: var(--bad); }
+  .notice { background: var(--warn-bg); color: var(--ink); border-left: 5px solid var(--warn); padding: 12px 14px; border-radius: 10px;
+    margin-top: 14px; white-space: pre-line; }
+  #progress ul, .checks { list-style: none; padding: 0; margin: 8px 0 0; }
+  #progress li, .checks li { padding: 6px 0; display: flex; gap: 10px; align-items: baseline; }
+  .checks li { border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .checks .d { flex-basis: 100%; padding-left: 28px; color: var(--muted); font-size: 15px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: s 1s linear infinite; flex: none; transform: translateY(2px); }
+  @keyframes s { to { transform: translateY(2px) rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  .verdict { border-width: 2px; }
+  .verdict h2 { font-size: 28px; margin: 0; line-height: 1.2; }
+  .verdict .type { color: var(--muted); margin-top: 4px; }
+  .verdict .type::first-letter { text-transform: uppercase; }
+  .verdict.bad { border-color: var(--bad); background: var(--bad-bg); } .verdict.bad h2 { color: var(--bad); }
+  .verdict.warn { border-color: var(--warn); background: var(--warn-bg); } .verdict.warn h2 { color: var(--warn); }
+  .verdict.good { border-color: var(--ok); background: var(--ok-bg); } .verdict.good h2 { color: var(--ok); }
+  .todo { font-size: 18px; margin: 12px 0 0; }
+  h3 { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 6px; }
+  .why { list-style: none; padding: 0; margin: 0; }
+  .why li { padding: 8px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 7px; background: var(--muted); }
+  .dot.critical, .dot.high { background: var(--bad); } .dot.medium { background: var(--warn); } .dot.reassuring { background: var(--ok); }
+  .call { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 800; font-size: 22px; width: 100%; min-height: 60px; }
+  @media (prefers-color-scheme: dark) { .call { color: #200; } }
+  .call-sub { text-align: center; font-size: 15px; margin: 6px 0 0; }
+  .shot img { width: 100%; max-height: 420px; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--line); }
+  pre { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap;
+    word-break: break-word; font-size: 14px; max-height: 320px; overflow: auto; }
+  ol { padding-left: 22px; } ol li { margin: 6px 0; }
+  details { margin-top: 14px; } summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
+  footer { color: var(--muted); font-size: 15px; margin-top: 28px; }
+  footer a, .card a { color: var(--accent); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<header>
-  <h1>🛡️ ScamCheck</h1>
-  <p>Forward a suspicious message, link or screenshot and watch the agent investigate it.</p>
-  <div id="keys"></div>
-</header>
-<main>
-  <section class="panel">
-    <form id="f">
-      <label for="text">Suspicious message, link, UPI ID or phone number</label>
-      <textarea id="text" name="text" placeholder="Paste the SMS / WhatsApp message here…"></textarea>
-      <label for="image" style="margin-top:10px">…or a screenshot</label>
-      <input type="file" id="image" name="image" accept="image/*">
-      <div class="row">
-        <button class="primary" id="go" type="submit">Investigate</button>
-        <button type="button" id="reset" title="Forget this conversation">New conversation</button>
-      </div>
-      <p class="muted" style="font-size:13px">Follow-ups keep context. Try “I already paid ₹4,999 via PhonePe” after a scam verdict.</p>
-    </form>
-    <div class="samples">
-      <label>Sample messages (fictional)</label>
-      <div class="row" id="samples"></div>
+<div class="wrap">
+  <header>
+    <b>🛡️ ScamCheck</b>
+    <button class="lang" id="lang" type="button" lang="hi">हिंदी</button>
+  </header>
+
+  <h1 data-t="title"></h1>
+  <p class="sub" data-t="sub"></p>
+
+  <form id="f" class="card" novalidate>
+    <textarea id="text" name="text" data-t-placeholder="placeholder" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <div class="thumb" id="thumb" hidden><img alt=""><span data-t="shot_added"></span><button type="button" id="unshot" data-t="remove"></button></div>
+    <div class="row">
+      <button type="button" id="paste" data-t="paste" hidden></button>
+      <button type="button" id="pick" data-t="add_shot"></button>
+      <input type="file" id="image" accept="image/*" hidden>
     </div>
-  </section>
-  <section>
-    <div class="tabs">
-      <button id="tab-trace" class="active">This investigation</button>
-      <button id="tab-live" title="Everyone's checks, live. Message content stays private except for demo numbers.">Live feed (all channels, incl. WhatsApp)</button>
-    </div>
-    <div id="pane-trace"><div id="trace"><p class="muted">The agent's reasoning, tool calls and evidence will appear here.</p></div><div id="result"></div></div>
-    <div id="pane-live" hidden><div id="live"></div></div>
-  </section>
-</main>
+    <button class="primary" id="go" type="submit" data-t="check"></button>
+    <p class="hint" id="paid-hint" hidden data-t="paid_hint"></p>
+    <div class="msg err" id="formerr" role="alert" hidden></div>
+  </form>
+
+  <div class="notice" id="notice" hidden></div>
+  <div class="card" id="progress" role="status" aria-live="polite" hidden><ul></ul></div>
+  <div id="result" aria-live="polite"></div>
+
+  <footer>
+    <p data-t="privacy"></p>
+    <p data-t-html="lost"></p>
+    <p><a href="/demo" data-t="dev"></a></p>
+  </footer>
+</div>
 <script>
-const SAMPLES = {
-  "Fake KYC": "Dear Customer, your SBI YONO account will be BLOCKED today due to incomplete KYC. Update PAN immediately: http://sbi-kyc-update.xyz/login",
-  "Digital arrest": "This is Inspector Rajesh from Mumbai Cyber Crime. A FedEx parcel with MDMA booked on your Aadhaar was seized. An arrest warrant has been issued. Stay on video call and do not tell your family. Call +855 96 123 4567.",
-  "Task scam": "Hi! I am Priya, HR from Amazon. Part time job, earn ₹3000 daily by liking YouTube videos. Join Telegram t.me/amz_task_earn for prepaid task bonus.",
-  "Electricity": "Dear consumer your electricity power will be disconnected tonight at 9.30 pm because your previous month bill was not update. Please immediately contact our electricity officer 9876543210",
-  "Real OTP forwarded": "Your OTP for HDFC Bank NetBanking login is 482913. Do not share it with anyone. -HDFC Bank",
-  "UPI ID": "pay refund to cashback.reward2024@ybl to get your ₹5000 refund"
+const T = {
+  en: {
+    title: "Is this a scam?",
+    sub: "Paste a suspicious message, link, UPI ID or phone number, or add a screenshot. Free, and it takes a few seconds.",
+    placeholder: "Paste the message here…", paste: "📋 Paste", add_shot: "🖼️ Add screenshot", shot_added: "Screenshot added",
+    remove: "Remove", check: "Check it", checking: "Checking…",
+    waking: "Starting up. The first check after a quiet spell can take up to a minute…",
+    what: "What to do", why: "Why", more: "More reasons", how: "How we checked", link_opens: "What the link opens. We opened it safely, so you don't have to.",
+    paid: "I already paid or shared a code", paid_prefill: "I already paid ₹",
+    paid_hint: "Add the amount, how you paid (UPI, card…) and when, if you know. I'll draft your police complaint.",
+    again: "Check something else", call: "📞 Call 1930 now", call_sub: "National Cyber Crime Helpline, free, 24×7. The first hours matter most.",
+    complaint: "Your complaint, ready to copy", copy: "Copy complaint", copied: "✓ Copied", file: "Open cybercrime.gov.in",
+    steps: "Next steps",
+    privacy: "We don't keep your message or screenshot, and OTPs and PINs are hidden automatically. Links, numbers and UPI IDs from scam messages are remembered to warn others.",
+    lost: 'Lost money to a scam? Call <a href="tel:1930">1930</a> or report at <a href="https://cybercrime.gov.in" target="_blank" rel="noopener">cybercrime.gov.in</a>.',
+    dev: "How it works (developer view)",
+    err_empty: "Paste a message or add a screenshot first.", err_big: "That image is too big. Crop it to the message and try again.",
+    err_net: "Couldn't reach ScamCheck. Check your internet and try again.", err_fail: "Something went wrong on our side. Please try again.",
+    paste_fallback: "Long-press the box and tap Paste.", not_image: "That file isn't an image. Add a screenshot instead.",
+    no_checks: "Nothing to check yet.",
+  },
+  hi: {
+    title: "क्या यह धोखा है?",
+    sub: "कोई संदिग्ध मैसेज, लिंक, UPI ID या फ़ोन नंबर पेस्ट करें, या स्क्रीनशॉट जोड़ें। मुफ़्त है, कुछ सेकंड लगते हैं।",
+    placeholder: "मैसेज यहाँ पेस्ट करें…", paste: "📋 पेस्ट करें", add_shot: "🖼️ स्क्रीनशॉट जोड़ें", shot_added: "स्क्रीनशॉट जुड़ गया",
+    remove: "हटाएँ", check: "जाँचें", checking: "जाँच हो रही है…",
+    waking: "सर्वर शुरू हो रहा है। कुछ देर बाद पहली जाँच में एक मिनट तक लग सकता है…",
+    what: "क्या करें", why: "क्यों", more: "और कारण", how: "हमने कैसे जाँचा", link_opens: "लिंक खोलने पर यह दिखता है। हमने इसे सुरक्षित तरीके से खोला, आपको खोलने की ज़रूरत नहीं।",
+    paid: "मैंने पैसे भेज दिए या कोड बता दिया", paid_prefill: "मैंने पैसे भेज दिए ₹",
+    paid_hint: "अगर पता हो तो रकम, कैसे भेजा (UPI, कार्ड…) और कब, लिख दें। मैं आपकी पुलिस शिकायत तैयार कर दूँगा।",
+    again: "कुछ और जाँचें", call: "📞 अभी 1930 पर कॉल करें", call_sub: "राष्ट्रीय साइबर क्राइम हेल्पलाइन, मुफ़्त, 24×7। शुरुआती घंटे सबसे ज़रूरी हैं।",
+    complaint: "आपकी शिकायत, कॉपी करने के लिए तैयार", copy: "शिकायत कॉपी करें", copied: "✓ कॉपी हो गई", file: "cybercrime.gov.in खोलें",
+    steps: "आगे क्या करें",
+    privacy: "हम आपका मैसेज या स्क्रीनशॉट नहीं रखते, और OTP व PIN अपने-आप छिप जाते हैं। धोखे वाले मैसेज के लिंक, नंबर और UPI ID दूसरों को सावधान करने के लिए याद रखे जाते हैं।",
+    lost: 'धोखे में पैसे गए? <a href="tel:1930">1930</a> पर कॉल करें या <a href="https://cybercrime.gov.in" target="_blank" rel="noopener">cybercrime.gov.in</a> पर शिकायत करें।',
+    dev: "यह कैसे काम करता है (डेवलपर व्यू)",
+    err_empty: "पहले कोई मैसेज पेस्ट करें या स्क्रीनशॉट जोड़ें।", err_big: "यह इमेज बहुत बड़ी है। मैसेज वाले हिस्से तक क्रॉप करके फिर कोशिश करें।",
+    err_net: "ScamCheck तक नहीं पहुँच पाए। इंटरनेट चेक करके फिर कोशिश करें।", err_fail: "हमारी तरफ़ कुछ गड़बड़ हुई। कृपया फिर कोशिश करें।",
+    paste_fallback: "बॉक्स को दबाकर रखें और Paste दबाएँ।", not_image: "यह इमेज नहीं है। स्क्रीनशॉट जोड़ें।",
+    no_checks: "अभी जाँचने को कुछ नहीं।",
+  },
 };
+// The verdict heading follows the language the person wrote in, which can differ from the page language.
+const HEAD = {
+  SCAM:         { English: "This is a scam", Hindi: "यह धोखा है", Hinglish: "Yeh scam hai" },
+  LIKELY_SCAM:  { English: "Very likely a scam", Hindi: "लगभग पक्का धोखा", Hinglish: "Lagbhag pakka scam" },
+  SUSPICIOUS:   { English: "Be careful", Hindi: "सावधान रहें", Hinglish: "Saavdhan rahiye" },
+  INCONCLUSIVE: { English: "Couldn't tell for sure", Hindi: "पक्का नहीं कह सकते", Hinglish: "Pakka nahi keh sakte" },
+  LIKELY_SAFE:  { English: "Probably safe", Hindi: "शायद सुरक्षित", Hinglish: "Shayad safe" },
+  SAFE:         { English: "Looks safe", Hindi: "सुरक्षित लगता है", Hinglish: "Safe lagta hai" },
+};
+const STEP = {
+  read_screenshot: ["Reading the screenshot", "स्क्रीनशॉट पढ़ रहे हैं"],
+  extract_indicators: ["Finding links, numbers and UPI IDs", "लिंक, नंबर और UPI ID ढूँढ रहे हैं"],
+  match_scam_scripts: ["Comparing with known scams", "जाने-पहचाने धोखों से मिला रहे हैं"],
+  check_domain: ["Checking who owns the website", "वेबसाइट किसकी है, जाँच रहे हैं"],
+  check_url_reputation: ["Checking security blocklists", "सुरक्षा ब्लॉकलिस्ट जाँच रहे हैं"],
+  visit_in_sandbox: ["Opening the link safely", "लिंक सुरक्षित तरीके से खोल रहे हैं"],
+  analyse_phone_number: ["Checking the phone number", "फ़ोन नंबर जाँच रहे हैं"],
+  check_indicator_history: ["Checking earlier reports", "पुरानी रिपोर्ट देख रहे हैं"],
+};
+const BAD = ["SCAM", "LIKELY_SCAM"], MAX_UPLOAD = 5 * 1024 * 1024;
+
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const sid = (() => { try { let v = localStorage.getItem("sid"); if (!v) { v = Math.random().toString(36).slice(2); localStorage.setItem("sid", v); } return v; } catch { return "web"; } })();
-const TOOL_LABEL = {
-  extract_indicators: "Extracting links, numbers and UPI IDs", check_domain: "Checking domain age and brand impersonation",
-  check_url_reputation: "Querying Safe Browsing and VirusTotal", visit_in_sandbox: "Opening link in sandboxed browser",
-  match_scam_scripts: "Matching against known scam scripts", analyse_phone_number: "Analysing phone number",
-  check_indicator_history: "Checking earlier reports", draft_cybercrime_complaint: "Drafting cybercrime.gov.in complaint",
-  read_screenshot: "Reading the screenshot (on this server)",
-  submit_verdict: "Submitting verdict"
-};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const sid = store.get("sid") || (() => { const v = Math.random().toString(36).slice(2); store.set("sid", v); return v; })();
+let lang = store.get("lang") || ((navigator.language || "").startsWith("hi") ? "hi" : "en");
+let image = null, last = null, busy = false;
+const t = k => T[lang][k];
 
-for (const [k, v] of Object.entries(SAMPLES)) {
-  const b = document.createElement("button"); b.type = "button"; b.textContent = k;
-  b.onclick = () => { $("#text").value = v; }; $("#samples").append(b);
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll("[data-t-html]").forEach(el => { el.innerHTML = t(el.dataset.tHtml); });
+  document.querySelectorAll("[data-t-placeholder]").forEach(el => { el.placeholder = t(el.dataset.tPlaceholder); });
+  $("#text").setAttribute("aria-label", t("title"));
+  $("#lang").textContent = lang === "en" ? "हिंदी" : "English";
+  $("#lang").lang = lang === "en" ? "hi" : "en";
+  if (busy) $("#go").textContent = t("checking");
+  if (last) renderResult(last.result, last.checks, last.shots);
+}
+$("#lang").onclick = () => { lang = lang === "en" ? "hi" : "en"; store.set("lang", lang); applyLang(); };
+
+function formError(key) { const e = $("#formerr"); e.hidden = !key; e.textContent = key ? t(key) : ""; }
+
+// Paste: the clipboard API needs HTTPS and isn't in every browser, so the button only shows where it can work.
+if (navigator.clipboard && navigator.clipboard.readText) {
+  $("#paste").hidden = false;
+  $("#paste").onclick = async () => {
+    try { const s = await navigator.clipboard.readText(); if (s) { $("#text").value = s; formError(null); } else $("#text").focus(); }
+    catch { $("#text").focus(); const e = $("#formerr"); e.hidden = false; e.textContent = t("paste_fallback"); }
+  };
 }
 
-fetch("/api/health").then(r => r.json()).then(h => {
-  $("#keys").innerHTML = `model: <code>${esc(h.model)}</code>` +
-    ["safe_browsing", "virustotal", "whatsapp"].map(k => `<span>${h[k] ? "🟢" : "⚪"} ${k.replace("_", " ")}</span>`).join("");
-}).catch(() => {});
-
-function renderEvent(e, into) {
-  const d = document.createElement("div"); d.className = "ev " + e.type;
-  const sess = e.session && into.id === "live" ? `<span class="sess">[${esc(e.session)}]</span> ` : "";
-  switch (e.type) {
-    case "start": d.innerHTML = `<div class="t">${sess}New message${e.has_image ? " + screenshot" : ""}</div>` +
-      (e.private ? `<span class="muted">🔒 Message hidden. Only the checks and the verdict are shown.</span>` : esc(e.text)); break;
-    case "thinking": d.innerHTML = `<div class="t">${sess}Reasoning</div>${esc(e.text)}`; break;
-    case "text": d.innerHTML = `<div class="t">${sess}Agent</div>${esc(e.text)}`; break;
-    case "tool_call":
-      if (e.name === "submit_verdict") return;
-      d.innerHTML = `<div class="t">${sess}🔧 ${esc(TOOL_LABEL[e.name] || e.name)}</div>` +
-        (e.private ? "" : `<code>${esc(e.name)}(${esc(Object.values(e.input || {}).map(v => typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)).join(", "))})</code>`); break;
-    case "tool_result":
-      d.innerHTML = `<div class="t">${sess}✓ ${esc(e.name)}</div>` +
-        (e.private ? "" : `<details><summary>${esc(summarise(e))}</summary><pre>${esc(JSON.stringify(e.result, null, 2))}</pre></details>`); break;
-    case "screenshot":
-      d.className += " shot"; d.innerHTML = `<div class="t">${sess}📸 Sandbox screenshot</div><span class="muted">${esc(e.url)}</span><img alt="Screenshot of ${esc(e.url)}" src="data:image/jpeg;base64,${e.data}">`; break;
-    case "error": d.innerHTML = `<div class="t">${sess}Error</div>${esc(e.message)}`; break;
-    case "notice": d.innerHTML = `<div class="t">${sess}Warning sent first</div>${esc(e.message.replace(/\*/g, ""))}`; break;
-    case "verdict": if (into.id !== "live") return;
-      d.innerHTML = `<div class="t">${sess}Verdict</div><b>${esc(e.verdict.verdict)}</b> ${esc(e.verdict.scam_type)}`; break;
-    default: return;
-  }
-  into.append(d); d.scrollIntoView({ block: "nearest", behavior: "smooth" });
+// Screenshots: big phone photos are shrunk in the browser, so they upload fast on mobile data and fit the 5 MB limit.
+async function shrink(file) {
+  if (file.size <= MAX_UPLOAD * 0.8) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.88));
+    return blob && blob.size < file.size ? new File([blob], "screenshot.jpg", { type: "image/jpeg" }) : file;
+  } catch { return file; }
 }
-
-function summarise(e) {
-  const r = e.result || {};
-  if (r.error) return "error: " + r.error;
-  switch (e.name) {
-    case "extract_indicators": return `${r.urls?.length || 0} links, ${r.phone_numbers?.length || 0} numbers, ${r.upi_ids?.length || 0} UPI IDs`;
-    case "check_domain": return r.is_official_domain ? `Official ${r.brand} domain` :
-      `${r.findings?.length || 0} red flags; age: ${r.registration?.age_days ?? "unknown"} days`;
-    case "check_url_reputation": return `Safe Browsing: ${r.safe_browsing?.status === "ok" ? (r.safe_browsing.flagged ? "FLAGGED" : "not listed") : r.safe_browsing?.status}; VirusTotal: ${r.virustotal?.status}`;
-    case "visit_in_sandbox": return r.status === "ok" ? `“${r.title || "untitled"}” → ${r.final_url}` + (r.asks_password || r.asks_otp || r.asks_card ? " ⚠ asks for credentials" : "") : `${r.status}: ${r.error || ""}`;
-    case "match_scam_scripts": return r.matches?.length ? r.matches.map(m => `${m.script} (${m.strength})`).join(", ") : "no known script matched";
-    case "analyse_phone_number": return `${r.country}; seen ${r.history?.times_seen || 0}× before`;
-    case "check_indicator_history": return `seen ${r.times_seen}× before`;
-    case "draft_cybercrime_complaint": return "Complaint draft ready";
-    case "read_screenshot": return r.status === "ok" ? `read ${r.text.length} characters` + (r.otp_codes_hidden ? ", OTP hidden" : "") :
-      { no_text: "no text found", unreadable: "not a readable image", unavailable: "OCR not installed" }[r.status] || r.status;
-  }
-  return "details";
+async function setImage(file) {
+  formError(null);
+  if (!file) { image = null; $("#thumb").hidden = true; $("#image").value = ""; return; }
+  if (!file.type.startsWith("image/")) return formError("not_image");
+  image = await shrink(file);
+  if (image.size > MAX_UPLOAD) { image = null; return formError("err_big"); }
+  const img = $("#thumb img"); URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(image);
+  $("#thumb").hidden = false;
 }
-
-function renderResult(res, waText) {
-  const box = $("#result"); box.innerHTML = "";
-  if (!res) return;
-  if (!res.verdict) { box.innerHTML = `<div class="verdict"><p>${esc(res.user_message)}</p></div>`; return; }
-  const cls = ["SCAM", "LIKELY_SCAM"].includes(res.verdict) ? "bad" : res.verdict === "SUSPICIOUS" ? "warn" : ["SAFE", "LIKELY_SAFE"].includes(res.verdict) ? "good" : "";
-  box.innerHTML = `<div class="verdict ${cls}">
-    <h2>${esc(res.verdict.replace("_", " "))}</h2>
-    <div class="muted">${esc(res.scam_type || "")} · confidence ${esc(res.confidence)}</div>
-    ${res.already_paid ? `<p><b>📞 Call 1930 now</b>, then report at cybercrime.gov.in.</p>` : ""}
-    <ul class="ev-list">${(res.evidence || []).map(x => `<li><span class="sev ${esc(x.severity)}">${esc(x.severity)}</span>${esc(x.finding)} <span class="muted">(${esc(x.source)})</span></li>`).join("")}</ul>
-    <label style="margin-top:12px">What the user receives on WhatsApp</label>
-    <div class="wa">${esc(waText)}</div>
-    ${res.complaint ? `<label style="margin-top:12px">Complaint draft</label><pre>${esc(res.complaint.complaint_text)}</pre>
-      <ol>${res.complaint.urgent_steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
-  </div>`;
-}
+$("#pick").onclick = () => $("#image").click();
+$("#image").onchange = () => setImage($("#image").files[0]);
+$("#unshot").onclick = () => setImage(null);
+$("#text").addEventListener("paste", e => {  // a screenshot pasted on a computer
+  const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith("image/"));
+  if (f) { e.preventDefault(); setImage(f); }
+});
 
 async function readNdjson(resp, onEvent) {
-  const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  const reader = resp.body.getReader(), dec = new TextDecoder(); let buf = "";
   for (;;) {
     const { value, done } = await reader.read(); if (done) break;
     buf += dec.decode(value, { stream: true });
@@ -200,44 +247,151 @@ async function readNdjson(resp, onEvent) {
   }
 }
 
+// One line per check, in plain words. Developers get the raw results at /demo.
+function detail(name, r) {
+  if (!r || r.status === "error") return "Couldn't run this check this time.";
+  switch (name) {
+    case "read_screenshot": return r.status === "ok" ? "Read the text on this server. The image wasn't saved or sent anywhere." : "No readable text found.";
+    case "extract_indicators": {
+      const parts = [[r.urls, "link"], [r.phone_numbers, "phone number"], [r.upi_ids, "UPI ID"], [r.emails, "email address"]]
+        .filter(([a]) => a && a.length).map(([a, w]) => `${a.length} ${w}${a.length > 1 ? "s" : ""}`);
+      return parts.length ? "Found " + parts.join(", ") + "." : "No links, numbers or UPI IDs in the message.";
+    }
+    case "match_scam_scripts": return r.matches?.length ? "Matches: " + r.matches.map(m => m.script).join(", ") + "." : "Doesn't match a known scam script.";
+    case "check_domain": {
+      if (r.is_official_domain) return `Official ${r.brand} website.`;
+      const age = r.registration?.age_days;
+      return (r.possible_impersonated_brand ? `Pretends to be ${r.possible_impersonated_brand}. ` : "") +
+        (age != null ? `Website registered ${age} day${age === 1 ? "" : "s"} ago.` : "Couldn't find when the website was registered.");
+    }
+    case "check_url_reputation": {
+      const sb = r.safe_browsing, vt = r.virustotal;
+      const on = [sb?.status === "ok" && "Google Safe Browsing", vt && vt.status === "ok" && "VirusTotal"].filter(Boolean);
+      if (!on.length) return "Blocklists not set up on this server.";
+      return sb?.flagged ? "Google lists it as dangerous." : `Checked ${on.join(" and ")}.`;
+    }
+    case "visit_in_sandbox": return r.status === "ok" ? (r.asks_password || r.asks_otp || r.asks_card || r.asks_bank_login ?
+      "The page asks for passwords, OTPs or card details." : "Opened it in an isolated browser.") : r.status === "dead" ? "The website no longer exists." : "Couldn't open the link.";
+    case "analyse_phone_number": return [r.country, r.history?.times_seen ? `reported ${r.history.times_seen}× before` : ""].filter(Boolean).join(", ") + ".";
+    case "check_indicator_history": return r.times_seen ? `Seen ${r.times_seen}× in earlier checks.` : "Not seen in earlier checks.";
+  }
+  return "";
+}
+
+function renderProgress(checks) {
+  const box = $("#progress"); box.hidden = false;
+  box.querySelector("ul").innerHTML = [...checks.values()].map(c =>
+    `<li>${c.done ? "✅" : '<span class="spinner" aria-hidden="true"></span>'}<span>${esc(STEP[c.name]?.[lang === "hi" ? 1 : 0] || c.name)}</span></li>`).join("");
+}
+
+// The most serious reasons first; minor ones ("No HTTPS") shouldn't bury them.
+const TOP_REASONS = 4;
+const reasons = list => `<ul class="why">${list.map(e =>
+  `<li><span class="dot ${esc(e.severity)}" aria-hidden="true"></span><span>${esc(e.finding)}</span></li>`).join("")}</ul>`;
+
+function renderResult(res, checks, shots) {
+  const box = $("#result");
+  if (!res) { box.innerHTML = ""; return; }
+  if (!res.verdict) { box.innerHTML = `<div class="card"><p style="margin:0">${esc(res.user_message)}</p></div>`; return; }
+  const v = res.verdict, cls = BAD.includes(v) ? "bad" : v === "SUSPICIOUS" ? "warn" : ["SAFE", "LIKELY_SAFE"].includes(v) ? "good" : "";
+  const order = { critical: 0, high: 1, medium: 2, low: 3, reassuring: 4 };
+  const why = [...(res.evidence || [])].sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5));
+  const c = res.complaint;
+  box.innerHTML = `
+    ${res.already_paid ? `<div class="card verdict bad">
+        <a class="btn call" href="tel:1930">${t("call")}</a><p class="call-sub">${t("call_sub")}</p></div>` : ""}
+    <div class="card verdict ${cls}">
+      <h2 tabindex="-1" id="vh">${esc(HEAD[v]?.[res.language] || HEAD[v]?.English || v)}</h2>
+      ${res.scam_type ? `<div class="type">${esc(res.scam_type)}</div>` : ""}
+      <h3>${t("what")}</h3>
+      <p class="todo">${esc(res.user_message)}</p>
+      ${why.length ? `<h3>${t("why")}</h3>${reasons(why.slice(0, TOP_REASONS))}` : ""}
+      ${why.length > TOP_REASONS ? `<details><summary>${t("more")} (${why.length - TOP_REASONS})</summary>${reasons(why.slice(TOP_REASONS))}</details>` : ""}
+      ${shots.length ? `<h3>${t("link_opens")}</h3>${shots.map(s => `<div class="shot"><img alt="Screenshot of the page the link opens" src="data:image/jpeg;base64,${s}"></div>`).join("")}` : ""}
+      <details><summary>${t("how")}</summary><ul class="checks">${[...checks.values()].map(c =>
+        `<li>✅ <span>${esc(STEP[c.name]?.[lang === "hi" ? 1 : 0] || c.name)}</span><span class="d">${esc(detail(c.name, c.result))}</span></li>`).join("")
+        || `<li>${t("no_checks")}</li>`}</ul></details>
+    </div>
+    ${c ? `<div class="card">
+      <h3 style="margin-top:0">${t("steps")}</h3><ol>${c.urgent_steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+      <h3>${t("complaint")}</h3><pre id="complaint">${esc(c.complaint_text)}</pre>
+      <div class="row"><button type="button" id="copy">${t("copy")}</button>
+        <a class="btn" href="https://cybercrime.gov.in" target="_blank" rel="noopener">${t("file")}</a></div></div>` : ""}
+    <div class="row">
+      ${!res.already_paid && (BAD.includes(v) || v === "SUSPICIOUS") ? `<button type="button" id="paid">${t("paid")}</button>` : ""}
+      <button type="button" id="again">${t("again")}</button>
+    </div>`;
+  $("#copy")?.addEventListener("click", async e => {
+    try { await navigator.clipboard.writeText(c.complaint_text); }
+    catch { getSelection().selectAllChildren($("#complaint")); document.execCommand("copy"); }
+    e.target.textContent = t("copied");
+  });
+  $("#paid")?.addEventListener("click", () => {
+    const ta = $("#text"); ta.value = t("paid_prefill"); $("#paid-hint").hidden = false;
+    clearImage(); ta.scrollIntoView({ block: "center" }); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  });
+  $("#again").addEventListener("click", startOver);
+}
+
+function clearImage() { image = null; $("#thumb").hidden = true; $("#image").value = ""; }
+
+async function startOver() {
+  const fd = new FormData(); fd.append("session_id", sid);
+  fetch("/api/reset", { method: "POST", body: fd }).catch(() => {});
+  last = null; $("#text").value = ""; clearImage(); $("#result").innerHTML = ""; $("#notice").hidden = true;
+  $("#progress").hidden = true; $("#paid-hint").hidden = true; formError(null);
+  window.scrollTo({ top: 0 }); $("#text").focus();
+}
+
 $("#f").onsubmit = async ev => {
   ev.preventDefault();
-  const fd = new FormData($("#f")); fd.append("session_id", sid);
-  if (!$("#image").files.length) fd.delete("image");
-  $("#go").disabled = true; $("#result").innerHTML = "";
-  const trace = $("#trace"); trace.innerHTML = `<p class="muted" id="st"><span class="spinner"></span> Starting investigation…</p>`;
+  if (busy) return;
+  const text = $("#text").value.trim();
+  if (!text && !image) return formError("err_empty");
+  formError(null); busy = true;
+  const go = $("#go"); go.disabled = true; go.textContent = t("checking");
+  $("#result").innerHTML = ""; $("#notice").hidden = true; last = null;
+  const checks = new Map(), shots = [];
+  renderProgress(checks);
+  const prog = $("#progress ul");
+  // A free server sleeps when idle; say so instead of looking frozen.
+  const waking = setTimeout(() => { prog.innerHTML = `<li><span class="spinner" aria-hidden="true"></span><span>${t("waking")}</span></li>`; }, 5000);
+  const ctl = new AbortController(), timeout = setTimeout(() => ctl.abort(), 150000);
+  const fd = new FormData(); fd.append("text", text); fd.append("session_id", sid);
+  if (image) fd.append("image", image, image.name || "screenshot.jpg");
+  let result;
   try {
-    const resp = await fetch("/api/investigate", { method: "POST", body: fd });
-    if (!resp.ok) throw new Error((await resp.json()).detail || resp.statusText);
+    const resp = await fetch("/api/investigate", { method: "POST", body: fd, signal: ctl.signal });
+    clearTimeout(waking);
+    if (!resp.ok) throw new Error(resp.status === 413 ? "err_big" : "err_fail");
     await readNdjson(resp, e => {
-      if (e.type === "status") { const s = $("#st"); if (s) s.innerHTML = `<span class="spinner"></span> ${esc(e.message)}`; return; }
-      if (e.type === "done") { $("#st")?.remove(); renderResult(e.result, e.whatsapp_text); return; }
-      renderEvent(e, trace); const s = $("#st"); if (s) trace.append(s);
+      if (e.type === "tool_call" && STEP[e.name]) { checks.set(e.name + checks.size, { name: e.name }); renderProgress(checks); }
+      else if (e.type === "tool_result") {
+        const c = [...checks.values()].find(c => c.name === e.name && !c.done);
+        if (c) { c.done = true; c.result = e.result; renderProgress(checks); }
+      }
+      else if (e.type === "screenshot") shots.push(e.data);
+      else if (e.type === "notice") { const n = $("#notice"); n.hidden = false; n.textContent = e.message.replace(/\*/g, ""); }
+      else if (e.type === "done") result = e.result;
     });
-  } catch (err) { renderEvent({ type: "error", message: err.message }, trace); $("#st")?.remove(); }
-  $("#go").disabled = false;
-};
-
-$("#reset").onclick = async () => {
-  const fd = new FormData(); fd.append("session_id", sid);
-  await fetch("/api/reset", { method: "POST", body: fd });
-  $("#trace").innerHTML = `<p class="muted">New conversation started.</p>`; $("#result").innerHTML = ""; $("#text").value = "";
-};
-
-let liveStarted = false;
-function tab(which) {
-  $("#tab-trace").classList.toggle("active", which === "trace"); $("#tab-live").classList.toggle("active", which === "live");
-  $("#pane-trace").hidden = which !== "trace"; $("#pane-live").hidden = which !== "live";
-  if (which === "live" && !liveStarted) {
-    liveStarted = true;
-    (async function connect() {
-      try { await readNdjson(await fetch("/api/live"), e => { if (e.type !== "ping" && e.type !== "status") renderEvent(e, $("#live")); }); }
-      catch {}
-      setTimeout(connect, 2000);
-    })();
+    if (!result) throw new Error("err_fail");
+  } catch (err) {
+    clearTimeout(waking);
+    const key = T.en[err.message] ? err.message : "err_net";
+    $("#result").innerHTML = `<div class="msg err" role="alert">${esc(t(key))}</div>`;
+  } finally {
+    clearTimeout(timeout); busy = false; go.disabled = false; go.textContent = t("check");
   }
-}
-$("#tab-trace").onclick = () => tab("trace"); $("#tab-live").onclick = () => tab("live");
+  $("#progress").hidden = true;
+  if (result) {
+    last = { result, checks, shots };
+    $("#text").value = ""; clearImage(); $("#paid-hint").hidden = true;
+    renderResult(result, checks, shots);
+    const h = $("#vh"); if (h) { h.scrollIntoView({ block: "start" }); h.focus({ preventScroll: true }); }
+  }
+};
+
+applyLang();
 </script>
 </body>
 </html>

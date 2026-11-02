@@ -158,6 +158,7 @@ class Investigation:
             self.complaint = self._draft_complaint(ai_complaint, result["scam_type"])
         result["complaint"] = self.complaint
         result["otp_warning"] = otp_warning
+        result["language"] = rules.language(all_text)
         result["indicators"] = rules.suspect_indicators(self.findings)
         if result["verdict"] in ("SCAM", "LIKELY_SCAM", "SUSPICIOUS") and result["indicators"]:
             history.record_indicators(result["indicators"], result["verdict"], result["scam_type"])
