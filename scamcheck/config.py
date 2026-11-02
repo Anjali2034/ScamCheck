@@ -9,7 +9,7 @@ load_dotenv(ROOT / ".env")
 DATA_DIR = Path(__file__).resolve().parent / "data"
 RUNTIME_DIR = ROOT / "runtime"
 SCREENSHOT_DIR = RUNTIME_DIR / "screenshots"
-DB_PATH = RUNTIME_DIR / "scamcheck.db"
+DB_PATH = Path(os.getenv("SCAMCHECK_DB") or RUNTIME_DIR / "scamcheck.db")  # the "seen before" history
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 def is_production(env=os.environ) -> bool:

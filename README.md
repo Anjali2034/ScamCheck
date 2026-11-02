@@ -43,7 +43,9 @@ Open http://localhost:8000/demo for the **developer view**: sample messages, eve
 
 **CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for a screenshot). It stays open for follow-ups like "I already paid ₹4,999".
 
-**Tests:** `pytest` runs the offline test suite. It needs no API keys or network.
+**Tests:** `pytest` runs the offline test suite (71 tests). It needs no API keys or network.
+
+**End-to-end:** `python tests/e2e/run_all.py` runs one suite per build step (143 checks) against a real server, a real phone-sized browser, the sandbox and live RDAP lookups, so it needs internet and Playwright's Chromium. Run a few with `run_all.py 3 8`. The AI is switched off for these, so results don't depend on the free quota; `GROQ_LIVE=1` adds one check against the real Groq API. Test runs use a throwaway history database, set via `SCAMCHECK_DB`.
 
 ## Hooking up WhatsApp (Meta's free test number)
 
