@@ -535,3 +535,25 @@ def test_public_page_and_developer_view_are_separate():
 def test_result_says_which_language_to_show(offline):
     assert Investigation().run(FAKE_KYC)["language"] == "English"
     assert Investigation().run("आपका बिजली कनेक्शन आज रात काट दिया जाएगा, तुरंत 9876543210 पर कॉल करें")["language"] == "Hindi"
+
+
+def test_only_one_sandbox_browser_at_a_time(monkeypatch):
+    from scamcheck.tools import sandbox
+    monkeypatch.setattr(sandbox.socket, "getaddrinfo", lambda *a, **k: [(None, None, None, None, ("93.184.215.14", 0))])
+    monkeypatch.setattr(sandbox, "QUEUE_WAIT_S", 0.1)
+    monkeypatch.setattr(sandbox, "_visit", lambda url, host: {"status": "ok"})
+    assert sandbox.visit_url("https://example.com") == {"status": "ok"}
+    with sandbox._one_browser:  # another link is being opened
+        r = sandbox.visit_url("https://example.com")
+    assert r["status"] == "busy" and "other checks still ran" in r["error"]
+    assert sandbox.visit_url("https://example.com") == {"status": "ok"}  # the slot was given back
+
+
+def test_sandbox_screenshot_is_shown_once_then_deleted(tmp_path):
+    shot = tmp_path / "page.jpg"
+    shot.write_bytes(b"\xff\xd8jpeg")
+    events = []
+    r = agent._tool("visit_in_sandbox", lambda url: {"status": "ok", "screenshot_path": str(shot)}, events.append,
+                    url="https://example.com")
+    assert not shot.exists() and "screenshot_path" not in r
+    assert [e["type"] for e in events] == ["tool_call", "screenshot", "tool_result"]

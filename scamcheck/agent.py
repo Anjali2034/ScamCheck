@@ -4,6 +4,7 @@ reply. When the free AI quota is used up, a rule-based verdict answers instead, 
 import base64
 import re
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Callable
 
 from scamcheck import llm, ocr, otp_shield, quota, rules
@@ -41,9 +42,11 @@ def _tool(name: str, fn: Callable[..., dict], emit: Event, **args) -> dict:
     except Exception as e:
         result = {"status": "error", "error": str(e)}
     if name == "visit_in_sandbox" and result.get("screenshot_path"):
-        with open(result["screenshot_path"], "rb") as f:
-            emit({"type": "screenshot", "url": args["url"], "data": base64.standard_b64encode(f.read()).decode()})
-        result = {k: v for k, v in result.items() if k != "screenshot_path"}
+        shot = Path(result.pop("screenshot_path"))
+        try:
+            emit({"type": "screenshot", "url": args["url"], "data": base64.standard_b64encode(shot.read_bytes()).decode()})
+        finally:
+            shot.unlink(missing_ok=True)  # shown once, never kept: it can show what the person was sent
     emit({"type": "tool_result", "name": name, "result": result})
     return result
 

@@ -279,7 +279,7 @@ function detail(name, r) {
       return sb?.flagged ? "Google lists it as dangerous." : `Checked ${on.join(" and ")}.`;
     }
     case "visit_in_sandbox": return r.status === "ok" ? (r.asks_password || r.asks_otp || r.asks_card || r.asks_bank_login ?
-      "The page asks for passwords, OTPs or card details." : "Opened it in an isolated browser.") : r.status === "dead" ? "The website no longer exists." : "Couldn't open the link.";
+      "The page asks for passwords, OTPs or card details." : "Opened it in an isolated browser.") : r.status === "dead" ? "The website no longer exists." : r.status === "busy" ? "Skipped: the safe browser was busy with other links. Everything else was checked." : "Couldn't open the link.";
     case "analyse_phone_number": return [r.country, r.history?.times_seen ? `reported ${r.history.times_seen}× before` : ""].filter(Boolean).join(", ") + ".";
     case "check_indicator_history": return r.times_seen ? `Seen ${r.times_seen}× in earlier checks.` : "Not seen in earlier checks.";
   }

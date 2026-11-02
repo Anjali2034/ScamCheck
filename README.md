@@ -30,7 +30,7 @@ A free scam checker for people in India. Send it a suspicious SMS, screenshot, l
 ```powershell
 cd ScamCheck
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt; python -m playwright install chromium
+pip install -r requirements-dev.txt; python -m playwright install chromium
 copy .env.example .env                # optional: add a free GROQ_API_KEY
 uvicorn scamcheck.server:app --reload --port 8000
 ```
@@ -61,6 +61,17 @@ No phone number or SIM needed: Meta gives every developer app a free WhatsApp te
 Replies never contain a tappable scam link (they're written as `sbi-kyc[.]xyz`) and link previews are off, so a warning can't become a one-tap way back to the scam.
 
 **Demo tip:** open the **Live feed** tab at `/demo`. Every investigation streams there, so an audience can watch the checks run while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, screenshots, results), put your number in `DEMO_NUMBERS` in `.env`.
+
+## Deploying free on Render
+
+The [Dockerfile](Dockerfile) builds one image with the app, Chromium for the sandbox and Tesseract with Hindi. [render.yaml](render.yaml) describes a free web service in Render's Singapore region, the closest to India.
+
+1. Sign in at [render.com](https://render.com) with GitHub. No card is needed for the free plan.
+2. **New → Blueprint**, pick this repository, and paste `GROQ_API_KEY` when asked. Leave the WhatsApp fields empty for web-only. The server refuses to start in production without the Groq key, or with WhatsApp only partly set up.
+3. Wait for the first build (several minutes: the image is large). Open `https://<your-app>.onrender.com`.
+4. **Keep it awake (optional):** a free [cron-job.org](https://cron-job.org) job that opens `/api/health` every 10 minutes. Without it, the first visitor after 15 quiet minutes waits about a minute (the page says "Starting up…"). Always on uses about 744 of the workspace's 750 free hours a month, so it leaves almost nothing for a second free service.
+
+**What the free plan means in practice:** 512 MB of memory and a tenth of a CPU, so a check with a link takes longer than on a laptop. To fit, only one sandbox browser runs at a time (measured peak ≈ 210 MB of the app's own memory, whatever the load); a link that waits more than 25 s is skipped and the check says so. The disk is wiped on every redeploy, which resets the "seen before" history and the budget counters. Sandbox screenshots are deleted as soon as they've been shown.
 
 ## Getting the free API keys
 
@@ -125,3 +136,4 @@ Web UI ──────────▶ /api/investigate ────┼─▶ 
 - Hindi voice-note input (Groq's free Whisper → text)
 - Seed `check_indicator_history` with public data (e.g. the government's Chakshu reports, if an export becomes available)
 - An eval set of labeled real/fake messages to measure accuracy
+- A free hosted database (e.g. a free Postgres tier) so history and budgets survive redeploys

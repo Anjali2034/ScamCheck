@@ -1,0 +1,27 @@
+# Render Blueprint: New → Blueprint → pick this repo. Free plan; secrets are typed into the dashboard, never committed.
+services:
+  - type: web
+    name: scamcheck
+    runtime: docker
+    plan: free
+    region: singapore  # the closest Render region to India
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_SAFE_BROWSING_KEY
+        sync: false
+      - key: VIRUSTOTAL_API_KEY
+        sync: false
+      # WhatsApp: set all four or none (web-only). The server refuses to start with only some of them.
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: DEMO_NUMBERS
+        sync: false

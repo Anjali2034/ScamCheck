@@ -7,7 +7,9 @@ For production, also run this inside a disposable container or VM.
 import ipaddress
 import re
 import socket
+import threading
 import time
+import uuid
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Error as PlaywrightError
@@ -18,6 +20,16 @@ from scamcheck.config import SCREENSHOT_DIR
 NAV_TIMEOUT_MS = 20000
 USER_AGENT = ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36")
+# One browser at a time: each is a few hundred MB and Render's free plan has 512 MB for everything. A link that
+# waits longer than this is skipped (and the check says so) rather than making the person wait.
+_one_browser = threading.Semaphore(1)
+QUEUE_WAIT_S = 25
+LOW_MEMORY_ARGS = [
+    "--disable-extensions", "--no-first-run",
+    "--disable-dev-shm-usage",  # Docker gives /dev/shm only 64 MB; Chromium crashes on bigger pages without this
+    "--disable-gpu", "--renderer-process-limit=1", "--disable-background-networking",
+    "--js-flags=--max-old-space-size=128",
+]
 
 
 def _is_public_host(host: str) -> bool:
@@ -43,12 +55,21 @@ def visit_url(url: str) -> dict:
                                             "(common for phishing links after a few days)."}
     if not _is_public_host(host):
         return {"status": "blocked", "error": f"{host} points to a private/internal address; refusing to visit."}
+    if not _one_browser.acquire(timeout=QUEUE_WAIT_S):
+        return {"status": "busy", "error": "Other links were being opened, so this one was skipped. The other checks still ran."}
+    try:
+        return _visit(url, host)
+    finally:
+        _one_browser.release()
 
+
+def _visit(url: str, host: str) -> dict:
     redirects, blocked = [], []
-    shot_path = SCREENSHOT_DIR / f"{int(time.time() * 1000)}_{re.sub(r'[^a-z0-9]+', '_', host.lower())[:40]}.jpg"
+    # Unique per visit; the caller reads it into the trace and deletes it.
+    shot_path = SCREENSHOT_DIR / f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}_{re.sub(r'[^a-z0-9]+', '_', host.lower())[:40]}.jpg"
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--disable-extensions", "--no-first-run"])
+        browser = p.chromium.launch(headless=True, args=LOW_MEMORY_ARGS)
         try:
             ctx = browser.new_context(
                 user_agent=USER_AGENT, viewport={"width": 412, "height": 915}, is_mobile=True,
