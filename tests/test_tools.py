@@ -1,4 +1,6 @@
 """Offline tests for the deterministic tools (no API keys or network needed)."""
+import hashlib
+import hmac
 import io
 import re
 import time
@@ -105,14 +107,21 @@ def test_live_feed_never_leaks_message_content():
     assert {"type": "tool_call", "name": "extract_indicators", "private": True} in shown
 
 
-def test_unsigned_webhooks_only_accepted_in_development(monkeypatch):
+def test_webhook_signatures(monkeypatch):
     from scamcheck import config, whatsapp
 
-    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "")
+    body = b'{"entry": []}'
+    monkeypatch.setattr(config, "WHATSAPP_APP_SECRET", "")
     monkeypatch.setattr(config, "IS_PRODUCTION", False)
-    assert whatsapp.verify_signature("http://localhost/webhook/whatsapp", {}, "")
+    assert whatsapp.verify_signature(body, "")  # local testing only
     monkeypatch.setattr(config, "IS_PRODUCTION", True)
-    assert not whatsapp.verify_signature("https://x.onrender.com/webhook/whatsapp", {}, "")
+    assert not whatsapp.verify_signature(body, "")
+
+    monkeypatch.setattr(config, "WHATSAPP_APP_SECRET", "s3cret")
+    good = "sha256=" + hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
+    assert whatsapp.verify_signature(body, good)
+    assert not whatsapp.verify_signature(body + b" ", good)  # tampered body
+    assert not whatsapp.verify_signature(body, "sha256=forged")
 
 
 def test_production_mode_fails_safe():
@@ -132,20 +141,22 @@ def test_production_refuses_to_start_without_its_settings(monkeypatch):
     from scamcheck import config, server
 
     monkeypatch.setattr(config, "IS_PRODUCTION", True)
-    for k in ("GROQ_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"):
+    monkeypatch.setattr(config, "GROQ_API_KEY", "")
+    for k in server.WHATSAPP_SETTINGS:
         monkeypatch.setattr(config, k, "")
-    monkeypatch.setattr(config, "PUBLIC_BASE_URL", "http://not-https.example")
-    assert len(server.missing_production_settings()) == 3
+    monkeypatch.setattr(config, "WHATSAPP_ACCESS_TOKEN", "EAAG...")  # pasted the token, forgot the rest
+    assert len(server.missing_production_settings()) == 2
     try:
         with TestClient(server.app):
             raise AssertionError("server started without its production settings")
     except RuntimeError as e:
-        assert "PUBLIC_BASE_URL" in str(e)
+        assert "GROQ_API_KEY" in str(e) and "WHATSAPP_APP_SECRET" in str(e) and "only partly set up" in str(e)
 
     monkeypatch.setattr(config, "GROQ_API_KEY", "k")
-    monkeypatch.setattr(config, "TWILIO_ACCOUNT_SID", "AC1")
-    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "t")
-    monkeypatch.setattr(config, "PUBLIC_BASE_URL", "https://scamcheck.onrender.com")
+    monkeypatch.setattr(config, "WHATSAPP_ACCESS_TOKEN", "")
+    assert server.missing_production_settings() == []  # web-only is a valid deployment
+    for k in server.WHATSAPP_SETTINGS:
+        monkeypatch.setattr(config, k, "x")
     assert server.missing_production_settings() == []
 
 
@@ -345,7 +356,7 @@ def test_unreadable_images_get_an_honest_reply(offline, data):
     assert r["verdict"] is None and "couldn't read any text" in r["user_message"]
 
 
-def test_seen_messages_drops_twilio_retries():
+def test_seen_messages_drops_webhook_retries():
     seen = inbox.SeenMessages(max_items=2)
     assert seen.first_time("SM1") and not seen.first_time("SM1")
     assert seen.first_time("SM2") and seen.first_time("SM3")
@@ -389,41 +400,69 @@ def test_inbox_reset_drops_the_queued_batch():
     assert calls == []
 
 
+def _meta(*messages, statuses=None):
+    """A WhatsApp Cloud API webhook body, as Meta sends it."""
+    value = {"messaging_product": "whatsapp", "messages": list(messages)} if messages else {"statuses": statuses or []}
+    return {"object": "whatsapp_business_account", "entry": [{"id": "1", "changes": [{"field": "messages", "value": value}]}]}
+
+
+def _msg(mid, sender="917777777777", kind="text", **fields):
+    return {"id": mid, "from": sender, "timestamp": "1793600000", "type": kind,
+            **({"text": {"body": fields.pop("body")}} if kind == "text" else {}), **fields}
+
+
 def test_whatsapp_webhook_one_message_in_one_reply_out(monkeypatch):
     from fastapi.testclient import TestClient
 
-    from scamcheck import config, server
+    from scamcheck import config, server, whatsapp
 
-    monkeypatch.setattr(config, "TWILIO_AUTH_TOKEN", "")
+    monkeypatch.setattr(config, "WHATSAPP_APP_SECRET", "")
     monkeypatch.setattr(config, "IS_PRODUCTION", False)
     calls, on_batch = _collector()
+    sent, typing = [], []
     monkeypatch.setattr(server, "_whatsapp_job", on_batch)
+    monkeypatch.setattr(whatsapp, "send", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(whatsapp, "mark_read_and_typing", typing.append)
     monkeypatch.setattr(server.wa_inbox, "quiet_seconds", 0.3)
     client = TestClient(server.app)
+    post = lambda body: client.post("/webhook/whatsapp", json=body).status_code
 
-    def send(sid, sender="whatsapp:+917777777777", **form):
-        return client.post("/webhook/whatsapp", data={"MessageSid": sid, "From": sender, "NumMedia": "0", **form}).text
-
-    first = send("SM1", Body="Dear customer your SBI account is blocked http://sbi-kyc.xyz")
-    assert "Got it" in first
-    assert send("SM1", Body="Dear customer your SBI account is blocked http://sbi-kyc.xyz") == \
-        '<?xml version="1.0" encoding="UTF-8"?><Response/>'  # Twilio retry: silent
-    assert "<Message>" not in send("SM2", Body="is this real?")  # same burst: no second ack
-    otp_reply = send("SM3", Body="they also sent OTP 482913")
-    assert "one-time code" in otp_reply and "added the rest" in otp_reply  # warnings never wait
-    album = send("SM4", sender="whatsapp:+918888888888", NumMedia="3",
-                 **{f"MediaUrl{i}": f"https://api.twilio.com/m{i}" for i in range(3)},
-                 **{f"MediaContentType{i}": "image/jpeg" for i in range(3)})
-    assert "Got it" in album
-    voice = send("SM5", sender="whatsapp:+916666666666", NumMedia="1", MediaUrl0="u", MediaContentType0="audio/ogg")
-    assert "Voice notes" in voice
+    assert post(_meta(_msg("w1", body="Dear customer your SBI account is blocked http://sbi-kyc.xyz"))) == 200
+    assert typing == ["w1"] and sent == []  # "typing…", not an acknowledgement that spends the free allowance
+    post(_meta(_msg("w1", body="Dear customer your SBI account is blocked http://sbi-kyc.xyz")))  # Meta retry
+    post(_meta(_msg("w2", body="is this real?")))
+    post(_meta(_msg("w3", body="they also sent OTP 482913")))
+    assert len(sent) == 1 and "one-time code" in sent[0][1] and "482913" not in sent[0][1]  # warnings never wait
+    post(_meta(*[_msg(f"a{i}", sender="918888888888", kind="image", image={"id": f"media{i}", "mime_type": "image/jpeg"})
+                 for i in range(3)]))  # an album arrives as one message per image
+    post(_meta(_msg("v1", sender="916666666666", kind="audio", audio={"id": "m", "mime_type": "audio/ogg"})))
+    assert "Voice notes" in sent[-1][1]
+    post(_meta(_msg("r1", kind="reaction", reaction={"message_id": "x", "emoji": "👍"})))  # 👍 to a verdict
+    post(_meta(statuses=[{"id": "w9", "status": "delivered"}]))  # delivery receipt
+    assert len(sent) == 2 and "r1" not in typing  # reactions and receipts cost nothing
     time.sleep(0.8)
 
     by_sender = {c[0]: c for c in calls}
     assert len(calls) == 2  # one burst, one album; the retry and the voice note start nothing
-    assert by_sender["whatsapp:+917777777777"][1] == [
+    assert by_sender["+917777777777"][1] == [
         "Dear customer your SBI account is blocked http://sbi-kyc.xyz", "is this real?", "they also sent OTP [OTP hidden]"]
-    assert len(by_sender["whatsapp:+918888888888"][2]) == 3  # every image in the album, not just the first
+    assert [m[0] for m in by_sender["+918888888888"][2]] == ["media0", "media1", "media2"]
+
+    monkeypatch.setattr(config, "WHATSAPP_VERIFY_TOKEN", "scamcheck-2026")
+    q = {"hub.mode": "subscribe", "hub.challenge": "1158201444"}
+    assert client.get("/webhook/whatsapp", params={**q, "hub.verify_token": "scamcheck-2026"}).text == "1158201444"
+    assert client.get("/webhook/whatsapp", params={**q, "hub.verify_token": "guess"}).status_code == 403
+
+
+def test_whatsapp_replies_never_contain_a_tappable_scam_link():
+    result = {"verdict": "SCAM", "confidence": "high", "scam_type": "Fake KYC", "already_paid": False,
+              "user_message": "Don't open http://sbi-kyc-update.xyz/login. Use onlinesbi.sbi instead.",
+              "evidence": [{"source": "Brand impersonation check", "severity": "critical",
+                            "finding": "Pretends to be SBI, but login.sbi-kyc-update.xyz is not an official SBI website."}],
+              "indicators": [{"kind": "domain", "value": "sbi-kyc-update.xyz"}]}
+    text = format_for_whatsapp(result)
+    assert "sbi-kyc-update.xyz" not in text and "hxxp://sbi-kyc-update[.]xyz/login" in text
+    assert "login.sbi-kyc-update[.]xyz" in text and "onlinesbi.sbi" in text  # the real bank stays tappable
 
 
 def test_whatsapp_format_and_chunking():
@@ -433,5 +472,5 @@ def test_whatsapp_format_and_chunking():
         "evidence": [{"source": "RDAP", "finding": "Domain is 2 days old", "severity": "critical"}],
     })
     assert "*Scam*" in text and "1930" in text and "2 days old" in text
-    chunks = _chunks("line\n" * 1000)
-    assert all(len(c) <= 1500 for c in chunks) and "".join(chunks).count("line") == 1000
+    chunks = _chunks("line\n" * 2000)
+    assert all(len(c) <= 4096 for c in chunks) and "".join(chunks).count("line") == 2000

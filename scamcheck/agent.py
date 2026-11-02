@@ -240,8 +240,19 @@ class Investigation:
         return {"verdict": None, "user_message": text, "evidence": [], "complaint": self.complaint}
 
 
-def format_for_whatsapp(result: dict) -> str:
-    """Turn a verdict into WhatsApp text (WhatsApp supports *bold* and _italic_)."""
+def defang(text: str, domains: list[str]) -> str:
+    """'sbi-kyc.xyz' -> 'sbi-kyc[.]xyz', 'http://' -> 'hxxp://'. WhatsApp turns domains into tappable links,
+    and a reply warning about a scam must never hand the person a one-tap link to it."""
+    for d in sorted(set(domains), key=len, reverse=True):
+        text = re.sub(re.escape(d), d.replace(".", "[.]"), text, flags=re.I)
+    return re.sub(r"\bhttp(s?)://(?=[^\s]*\[\.\])", r"hxxp\1://", text)
+
+
+def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
+    """Turn a verdict (or its complaint draft) into WhatsApp text (WhatsApp supports *bold* and _italic_)."""
+    scam_domains = [i["value"] for i in result.get("indicators", []) if i["kind"] == "domain"]
+    if complaint:
+        return defang(result["complaint"]["complaint_text"], scam_domains)
     if not result.get("verdict"):
         return result["user_message"]
     icon = {"SCAM": "🚨", "LIKELY_SCAM": "🚨", "SUSPICIOUS": "⚠️", "LIKELY_SAFE": "✅", "SAFE": "✅", "INCONCLUSIVE": "❔"}
@@ -256,4 +267,4 @@ def format_for_whatsapp(result: dict) -> str:
         parts += ["", "📞 *Call 1930 now* (National Cyber Crime Helpline), then report at cybercrime.gov.in"]
     if result.get("otp_warning"):  # a code in a screenshot: the warning matters more than the verdict
         parts = [result["otp_warning"], ""] + parts
-    return "\n".join(parts)
+    return defang("\n".join(parts), scam_domains)

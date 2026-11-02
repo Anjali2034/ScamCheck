@@ -35,12 +35,16 @@ TESSDATA_DIR = RUNTIME_DIR / "tessdata"  # optional local language data (e.g. Hi
 SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
 VIRUSTOTAL_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")  # e.g. https://abcd.ngrok-free.app
+# WhatsApp Cloud API (Meta, free). The test number can reply to up to 5 numbers registered in the Meta dashboard.
+# All four are needed together; with none, ScamCheck runs web-only.
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v26.0")
+WHATSAPP_API_BASE = os.getenv("WHATSAPP_API_BASE", "https://graph.facebook.com")  # overridden only by end-to-end tests
 # Only these WhatsApp numbers show their full investigation (message text, reasoning, screenshots) in the
 # public live feed. Everyone else appears there as tool names and a verdict only.
-DEMO_NUMBERS = {"whatsapp:+" + n.strip().lstrip("+") for n in os.getenv("DEMO_NUMBERS", "").split(",") if n.strip()}
+DEMO_NUMBERS = {"+" + n.strip().lstrip("+") for n in os.getenv("DEMO_NUMBERS", "").split(",") if n.strip()}
 
 HTTP_TIMEOUT = 12

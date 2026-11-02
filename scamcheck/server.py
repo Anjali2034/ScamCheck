@@ -1,20 +1,22 @@
-"""HTTP server: web demo with a live agent trace, plus the Twilio WhatsApp webhook.
+"""HTTP server: the web checker with a live trace, plus the WhatsApp (Meta Cloud API) webhook.
 
 Run:  uvicorn scamcheck.server:app --reload --port 8000
 """
 import asyncio
+import hmac
 import json
 import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from xml.sax.saxutils import escape
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
 from scamcheck import config, inbox, otp_shield, whatsapp
 from scamcheck.agent import Investigation, format_for_whatsapp
+
+WHATSAPP_SETTINGS = ("WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN")
 
 
 def missing_production_settings() -> list[str]:
@@ -22,11 +24,11 @@ def missing_production_settings() -> list[str]:
     missing = []
     if not config.GROQ_API_KEY:
         missing.append("GROQ_API_KEY (free at console.groq.com): every verdict would fall back to rules only")
-    if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN):
-        missing.append("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN: replies can't be sent and webhooks can't be verified")
-    if not config.PUBLIC_BASE_URL.startswith("https://"):
-        missing.append("PUBLIC_BASE_URL (https://...): Twilio signatures are computed on the public URL, "
-                       "so without it every real message is rejected")
+    # WhatsApp is optional (the web page is the public channel), but half a setup fails silently on real messages.
+    unset = [k for k in WHATSAPP_SETTINGS if not getattr(config, k)]
+    if 0 < len(unset) < len(WHATSAPP_SETTINGS):
+        missing.append(", ".join(unset) + ": WhatsApp is only partly set up, so replies would fail or webhooks "
+                                          "couldn't be verified. Set all four, or none for web-only.")
     return missing
 
 
@@ -35,8 +37,8 @@ async def lifespan(_app):
     if config.IS_PRODUCTION:
         if missing := missing_production_settings():
             raise RuntimeError("ScamCheck won't start in production without:\n  - " + "\n  - ".join(missing))
-    elif not config.TWILIO_AUTH_TOKEN:
-        print("[scamcheck] Development mode: WhatsApp webhook signatures are NOT checked (no TWILIO_AUTH_TOKEN). "
+    elif not config.WHATSAPP_APP_SECRET:
+        print("[scamcheck] Development mode: WhatsApp webhook signatures are NOT checked (no WHATSAPP_APP_SECRET). "
               "Deploys on Render/Railway switch to production automatically; elsewhere set SCAMCHECK_ENV=production.")
     yield
 
@@ -93,8 +95,7 @@ RESET_WORDS = {"reset", "new", "start", "restart", "/new"}
 
 
 def _mask(phone: str) -> str:
-    digits = phone.replace("whatsapp:", "")
-    return digits[:3] + "•••••" + digits[-3:]
+    return phone[:3] + "•••••" + phone[-3:]
 
 
 def redact_for_feed(e: dict) -> dict | None:
@@ -213,26 +214,19 @@ def health():
     }
 
 
-def _twiml(text: str) -> Response:
-    return Response(f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{escape(text)}</Message></Response>',
-                    media_type="application/xml")
-
-
-def _twiml_empty() -> Response:
-    return Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")
+COMPLAINT_HEADER = ("📝 *Your complaint draft* (copy into cybercrime.gov.in). Links are written like example[.]com "
+                    "so they can't be tapped by mistake; type them normally when you file.\n\n")
 
 
 def _whatsapp_job(sender: str, texts: list[str], media: list[inbox.Media]) -> None:
     """Investigate everything one person sent in a burst, as one message, and send one reply."""
     try:
-        text = "\n\n".join(texts)
-        images = [whatsapp.download_media(url) for url, kind in media if kind.startswith("image/")]
-        result = _investigate(f"wa:{sender}", _mask(sender), text, images, lambda e: None,
+        images = [whatsapp.download_media(media_id) for media_id, kind in media if kind.startswith("image/")]
+        result = _investigate(f"wa:{sender}", _mask(sender), "\n\n".join(texts), images, lambda e: None,
                               public=sender in config.DEMO_NUMBERS)
         whatsapp.send(sender, format_for_whatsapp(result))
         if result.get("complaint"):
-            whatsapp.send(sender, "📝 *Your complaint draft* (copy into cybercrime.gov.in):\n\n"
-                          + result["complaint"]["complaint_text"])
+            whatsapp.send(sender, COMPLAINT_HEADER + format_for_whatsapp(result, complaint=True))
     except Exception as e:
         print(f"[whatsapp job failed] {_mask(sender)}: {e!r}")
         feed.publish({"type": "error", "session": _mask(sender), "message": "A check hit an error.", "private": True})
@@ -242,41 +236,49 @@ def _whatsapp_job(sender: str, texts: list[str], media: list[inbox.Media]) -> No
 seen_messages = inbox.SeenMessages()
 wa_inbox = inbox.Inbox(lambda sender, texts, media: _whatsapp_job(sender, texts, media))
 
-ACK = ("🔍 Got it. I'm checking the links, numbers and wording and will reply in about a minute.\n"
-       "Have more? Send it in the next few seconds (another screenshot, the number that called you) "
-       "and I'll check it all together.\n"
-       "Meanwhile: don't click the link, pay, or share any OTP.")
 
-
-@app.post("/webhook/whatsapp")
-async def whatsapp_webhook(request: Request):
-    form = dict(await request.form())
-    public_url = (config.PUBLIC_BASE_URL.rstrip("/") + request.url.path) if config.PUBLIC_BASE_URL else str(request.url)
-    if not whatsapp.verify_signature(public_url, form, request.headers.get("X-Twilio-Signature", "")):
-        raise HTTPException(403, "Invalid Twilio signature")
-    sid = form.get("MessageSid", "")
-    if sid and not seen_messages.first_time(sid):
-        return _twiml_empty()  # Twilio retrying a message we already have
-
-    sender = form.get("From", "")
-    body, hidden_codes = otp_shield.mask_otps((form.get("Body") or "").strip())  # before anything can log or store it
+def _handle_whatsapp_message(m: dict) -> None:
+    """One incoming message. Runs after the webhook has already answered Meta with 200."""
+    sender = m["sender"]
+    whatsapp.mark_read_and_typing(m["id"])  # blue ticks + "typing…" instead of an acknowledgement message
+    body, hidden_codes = otp_shield.mask_otps(m["text"].strip())  # before anything can log or store it
     if body.lower() in RESET_WORDS:
         wa_inbox.drop(sender)
         sessions.reset(f"wa:{sender}")
-        return _twiml("Started fresh. Forward me any suspicious message, link, screenshot, UPI ID or number.")
+        whatsapp.send(sender, "Started fresh. Forward me any suspicious message, link, screenshot, UPI ID or number.")
+        return
+    images = [x for x in m["media"] if x[1].startswith("image/")]
+    if not body and not images:
+        whatsapp.send(sender, "I can check text, links and screenshots. Voice notes, videos and documents aren't "
+                              "supported yet, so please forward the message text or send a screenshot."
+                      if m["media"] else
+                      "Forward me a suspicious SMS, link, screenshot, UPI ID or phone number and I'll check it.")
+        return
+    if hidden_codes:  # worth one extra message: they may be on the phone with the scammer right now
+        whatsapp.send(sender, otp_shield.warning(body))
+    wa_inbox.add(sender, body, images)
 
-    media = [(form.get(f"MediaUrl{i}", ""), form.get(f"MediaContentType{i}", ""))  # an album carries up to 10
-             for i in range(int(form.get("NumMedia", "0") or 0))]
-    if not body and not media:
-        return _twiml("Forward me a suspicious SMS, link, screenshot, UPI ID or phone number and I'll investigate it.")
-    if not body and not any(kind.startswith("image/") for _, kind in media):
-        return _twiml("I can check text, links and screenshots. Voice notes, videos and documents aren't supported "
-                      "yet, so please forward the message text or send a screenshot.")
 
-    # Twilio expects a reply within 15 s; investigations take longer, so acknowledge now and send the verdict later.
-    first_in_burst = wa_inbox.add(sender, body, media)
-    if hidden_codes:  # the warning always goes out at once: it matters more than the verdict, and right now
-        then = ("🔍 Now checking the rest of the message. I'll reply in about a minute." if first_in_burst
-                else "I've added the rest of this message to my check.")
-        return _twiml(otp_shield.warning(body) + "\n\n" + then)
-    return _twiml(ACK) if first_in_burst else _twiml_empty()
+@app.get("/webhook/whatsapp")
+def whatsapp_verify(mode: str = Query("", alias="hub.mode"), token: str = Query("", alias="hub.verify_token"),
+                    challenge: str = Query("", alias="hub.challenge")):
+    """Meta's one-time check when you save the webhook URL in the app dashboard."""
+    if mode == "subscribe" and config.WHATSAPP_VERIFY_TOKEN and hmac.compare_digest(token, config.WHATSAPP_VERIFY_TOKEN):
+        return PlainTextResponse(challenge)
+    raise HTTPException(403, "Verify token doesn't match WHATSAPP_VERIFY_TOKEN")
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request, background: BackgroundTasks):
+    raw = await request.body()
+    if not whatsapp.verify_signature(raw, request.headers.get("X-Hub-Signature-256", "")):
+        raise HTTPException(403, "Invalid signature")
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        raise HTTPException(400, "Not JSON") from None
+    for m in whatsapp.incoming(payload):
+        if m["id"] and not seen_messages.first_time(m["id"]):
+            continue  # Meta retrying a delivery we already have
+        background.add_task(_handle_whatsapp_message, m)
+    return {"ok": True}  # answer fast: Meta retries anything slow, for up to 36 hours

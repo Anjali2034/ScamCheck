@@ -43,15 +43,18 @@ Open http://localhost:8000, click a sample message, and watch the trace. With no
 
 **Tests:** `pytest` runs the offline test suite. It needs no API keys or network.
 
-## Hooking up WhatsApp (Twilio sandbox)
+## Hooking up WhatsApp (Meta's free test number)
 
-> Being replaced by Meta's free WhatsApp Cloud API test number; Twilio's trial credit runs out.
+No phone number or SIM needed: Meta gives every developer app a free WhatsApp test number. It can reply to up to 5 numbers you register, which suits demos; the public channel is the web page. Since 1 October 2026 each number gets 1,000 free replies a month, and ScamCheck uses one per check (the "typing…" indicator replaces an acknowledgement message, and it isn't a message).
 
-1. Create a Twilio account, then go to **Messaging → Try it out → Send a WhatsApp message**. From your phone, send the join code to the sandbox number.
-2. Put `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` in `.env`.
-3. Expose your server: `ngrok http 8000`, then set `PUBLIC_BASE_URL=https://<your-id>.ngrok-free.app` in `.env` (used to verify Twilio's signature). Restart uvicorn.
-4. In the sandbox settings, set **"When a message comes in"** to `https://<your-id>.ngrok-free.app/webhook/whatsapp` (POST).
-5. Forward a scam message to the sandbox number. You get an instant "Got it" reply, then the verdict. Anything you send in the next few seconds (a follow-up question, more screenshots) is checked together with it, so you get one verdict rather than one per message. Twilio retries are ignored. Send `reset` to start a new conversation.
+1. At [developers.facebook.com](https://developers.facebook.com), create an app (**Other → Business**) and add the **WhatsApp** product.
+2. In **WhatsApp → API Setup**, add your own WhatsApp number (and up to 4 others) as recipients.
+3. Fill in the four `WHATSAPP_*` values in `.env` (see `.env.example` for where each one is), then restart uvicorn.
+4. Make your laptop reachable: `cloudflared tunnel --url http://localhost:8000` (free, no account) prints an `https://….trycloudflare.com` URL.
+5. In **WhatsApp → Configuration → Webhook**, set the callback URL to `https://….trycloudflare.com/webhook/whatsapp`, type your `WHATSAPP_VERIFY_TOKEN`, click **Verify and save**, then subscribe to the **messages** field.
+6. Message the test number. You'll see blue ticks and "typing…", then one verdict. Anything you send in the next few seconds (a follow-up question, more screenshots) is checked together with it. Meta's retries are ignored, as are 👍 reactions and stickers. Send `reset` to start a new conversation.
+
+Replies never contain a tappable scam link (they're written as `sbi-kyc[.]xyz`) and link previews are off, so a warning can't become a one-tap way back to the scam.
 
 **Demo tip:** open the **Live feed** tab on the web page. Every investigation streams there, so an audience can watch the checks run while you use your phone. For privacy, strangers' checks show only which tools ran and the verdict. To show your own checks in full (message, screenshots, results), put your number in `DEMO_NUMBERS` in `.env`.
 
@@ -66,7 +69,7 @@ All optional; each one you leave out is skipped, and a skipped check never count
 ## Architecture
 
 ```
-WhatsApp ──Twilio──▶ /webhook/whatsapp ─┐  (dedupes retries, merges bursts, replies async)
+WhatsApp ──Meta────▶ /webhook/whatsapp ─┐  (signed, dedupes retries, merges bursts, replies async)
 Web UI ──────────▶ /api/investigate ────┼─▶ Investigation (per-person session, 30 min)
                     /api/live ◀── events┘        │
                                                  ▼
@@ -87,13 +90,14 @@ Web UI ──────────▶ /api/investigate ────┼─▶ 
 - `scamcheck/otp_shield.py`, `scamcheck/inbox.py`: OTP masking; retry dedupe and burst merging
 - `scamcheck/data/`: brand domains and scam-script patterns. These are plain JSON, so you can grow them without code changes.
 - `scamcheck/server.py`: FastAPI app, sessions, live feed, WhatsApp webhook
+- `scamcheck/whatsapp.py`: Meta Cloud API: signature check, message parsing, media download, typing indicator, sending
 - `runtime/`: screenshots + SQLite history (git-ignored)
 
 ## Safety notes
 
 - Forwarded messages and web pages are treated as **untrusted**: the prompt says so, page text is labelled, and the evidence floor means injected text can't lower a verdict that the checks support.
 - The sandbox uses a fresh context and blocks downloads, permissions and requests to private/loopback IPs (SSRF), with hard timeouts. **For a public deployment, run the browser in a disposable container too.**
-- On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Groq key, Twilio credentials and an https `PUBLIC_BASE_URL`, and it rejects any webhook without a valid Twilio signature. Unsigned webhooks are accepted only when running locally, so you can test with curl.
+- On Render, Railway or Fly (or with `SCAMCHECK_ENV=production`), the server won't start without its Groq key or with WhatsApp only partly configured, and it rejects any webhook without a valid Meta signature (`X-Hub-Signature-256`). Unsigned webhooks are accepted only when running locally, so you can test with curl.
 - **OTP shield.** People often forward a real OTP SMS to ask whether it's genuine. ScamCheck hides the code (OTPs, UPI PINs, MPINs) the moment a message arrives, before anything is logged, stored, streamed or sent to the AI. The person's first reply is a warning: never share a code, not even with ScamCheck, and if someone asked for it, it's a scam. Amounts, phone numbers, dates and postal PIN codes are left alone, because they're evidence.
 - ScamCheck never submits complaints and never asks for OTPs, PINs or passwords. It only drafts the complaint for the user to file.
 - Verdicts are advice, not certainty. When in doubt, the reply errs toward caution.

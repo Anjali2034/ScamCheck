@@ -1,14 +1,14 @@
-"""One message in, one reply out: drop Twilio retries and merge a burst of messages into one investigation."""
+"""One message in, one reply out: drop webhook retries and merge a burst of messages into one investigation."""
 import threading
 import time
 from collections import OrderedDict
 from typing import Callable
 
-Media = tuple[str, str]  # (url, content type)
+Media = tuple[str, str]  # (WhatsApp media id, content type)
 
 
 class SeenMessages:
-    """Twilio re-sends a webhook it thinks timed out. The same MessageSid must not start a second investigation."""
+    """Meta re-delivers a webhook it thinks failed. The same message id must not start a second investigation."""
 
     def __init__(self, ttl: float = 3600, max_items: int = 10_000):
         self._seen: OrderedDict[str, float] = OrderedDict()
