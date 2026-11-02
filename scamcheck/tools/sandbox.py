@@ -10,10 +10,11 @@ import socket
 import threading
 import time
 import uuid
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
+import requests
 
 from scamcheck.config import SCREENSHOT_DIR
 
@@ -42,6 +43,37 @@ def _is_public_host(host: str) -> bool:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
             return False
     return True
+
+
+MAX_HOPS = 6
+
+
+def follow_redirects(url: str) -> dict:
+    """Where a short link really goes: ask each server in turn where it points (plain HTTP, no browser, nothing on
+    the page runs). Light and quick, so it works even while the safe browser is busy. Every hop must be public."""
+    hops = [url]
+    for _ in range(MAX_HOPS):
+        host = urlsplit(hops[-1]).hostname or ""
+        try:
+            socket.getaddrinfo(host, None)
+        except (socket.gaierror, UnicodeError):
+            return {"status": "dead" if len(hops) == 1 else "ok", "final_url": hops[-1], "hops": hops,
+                    **({"error": f"{host} does not resolve."} if len(hops) == 1 else {"destination_down": True})}
+        if not _is_public_host(host):
+            return {"status": "blocked", "final_url": hops[-1], "hops": hops,
+                    "error": f"{host} points to a private/internal address; not following it."}
+        try:
+            r = requests.get(hops[-1], allow_redirects=False, stream=True, timeout=6, headers={"User-Agent": USER_AGENT})
+            r.close()
+        except requests.RequestException as e:
+            if len(hops) == 1:
+                return {"status": "error", "final_url": url, "hops": hops, "error": str(e).splitlines()[0][:200]}
+            return {"status": "ok", "final_url": hops[-1], "hops": hops, "destination_down": True}
+        location = r.headers.get("location")
+        if r.status_code not in (301, 302, 303, 307, 308) or not location:
+            return {"status": "ok", "final_url": hops[-1], "hops": hops, "http_status": r.status_code}
+        hops.append(urljoin(hops[-1], location))
+    return {"status": "ok", "final_url": hops[-1], "hops": hops, "note": f"Stopped after {MAX_HOPS} redirects."}
 
 
 def visit_url(url: str) -> dict:

@@ -33,6 +33,6 @@
     {"name": "National Cybercrime Reporting Portal", "keywords": ["cybercrime"], "domains": ["cybercrime.gov.in"]},
     {"name": "Electricity boards (BESCOM, MSEDCL, TPDDL, etc.)", "keywords": ["bescom", "msedcl", "mahadiscom", "tpddl", "bses", "electricity-bill", "powerbill"], "domains": ["bescom.co.in", "mahadiscom.in", "tatapower-ddl.com", "bsesdelhi.com"]}
   ],
-  "shorteners": ["bit.ly", "tinyurl.com", "t.ly", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "tiny.cc", "rebrand.ly", "goo.su", "s.id", "v.gd", "shorturl.asia", "ow.ly", "t.co"],
+  "shorteners": ["bit.ly", "bit.do", "tinyurl.com", "t.ly", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "tiny.cc", "rebrand.ly", "goo.su", "s.id", "v.gd", "shorturl.asia", "ow.ly", "t.co", "surl.li", "wa.link", "lnkd.in", "qrco.de"],
   "risky_tlds": ["xyz", "top", "online", "site", "club", "live", "icu", "vip", "shop", "buzz", "sbs", "cfd", "rest", "lol", "monster", "click", "link", "win", "bond", "cyou", "quest"]
 }

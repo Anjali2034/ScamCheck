@@ -116,6 +116,7 @@ const TOOL_LABEL = {
   match_scam_scripts: "Matching against known scam scripts", analyse_phone_number: "Analysing phone number",
   check_indicator_history: "Checking earlier reports", draft_cybercrime_complaint: "Drafting cybercrime.gov.in complaint",
   read_screenshot: "Reading the screenshot (on this server)",
+  follow_redirects: "Following the short link to its real destination",
   submit_verdict: "Submitting verdict"
 };
 
@@ -167,6 +168,7 @@ function summarise(e) {
     case "match_scam_scripts": return r.matches?.length ? r.matches.map(m => `${m.script} (${m.strength})`).join(", ") : "no known script matched";
     case "analyse_phone_number": return `${r.country}; seen ${r.history?.times_seen || 0}× before`;
     case "check_indicator_history": return `seen ${r.times_seen}× before`;
+    case "follow_redirects": return r.status === "ok" ? `→ ${r.final_url} (${r.hops.length - 1} redirect${r.hops.length === 2 ? "" : "s"})` : r.status;
     case "draft_cybercrime_complaint": return "Complaint draft ready";
     case "read_screenshot": return r.status === "ok" ? `read ${r.text.length} characters` + (r.otp_codes_hidden ? ", OTP hidden" : "") :
       { no_text: "no text found", unreadable: "not a readable image", unavailable: "OCR not installed" }[r.status] || r.status;

@@ -15,6 +15,7 @@ A free scam checker for people in India. Send it a suspicious SMS, screenshot, l
 | `read_screenshot` | Reads the text in screenshots (English + Hindi) with Tesseract **on the server**, so the image is never sent anywhere or saved. Dark-mode screenshots are inverted first; OTPs in the image are masked before anything else sees the text. | Tesseract |
 | `extract_indicators` | Links, UPI IDs (+ whether the PSP handle is real), phone numbers, emails, Telegram/wa.me handles, ₹ amounts | none |
 | `check_domain` | Brand impersonation of ~30 Indian banks, UPI apps, govt sites and couriers (keyword, typosquat and homoglyph checks), shorteners, risky TLDs, punycode, free hosting, **domain age via RDAP** | none |
+| `follow_redirects` | Where a short link (bit.ly, tinyurl, cutt.ly… 20 shorteners) really goes, by asking each server in turn (plain HTTP, nothing on the page runs, private addresses refused). The real destination then gets every website check too, and the reply says *"This link really goes to …"*. Pages that forward elsewhere by script are caught by the sandbox visit. "Seen before" remembers the destination and the exact short link, never the shortener itself. | none |
 | `check_url_reputation` | Google Safe Browsing + VirusTotal (URL and domain reports) | free API keys |
 | `visit_in_sandbox` | Opens the link in a throwaway headless phone browser (Playwright): redirect chain, final URL, whether it asks for password/OTP/card/Aadhaar, APK downloads, screenshot. Skipped for official bank domains. | none |
 | `match_scam_scripts` | 10 known scripts: digital arrest, task scam, fake KYC, investment, electricity cut-off, courier, KBC lottery, UPI refund/collect, sextortion, loan apps (English, Hinglish and Hindi cues) | none |
@@ -43,7 +44,7 @@ Open http://localhost:8000/demo for the **developer view**: sample messages, eve
 
 **CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for a screenshot). It stays open for follow-ups like "I already paid ₹4,999".
 
-**Tests:** `pytest` runs the offline test suite (86 tests). It needs no API keys or network.
+**Tests:** `pytest` runs the offline test suite (100 tests). It needs no API keys or network.
 
 **End-to-end:** `python tests/e2e/run_all.py` runs one suite per build step (165 checks) against a real server, a real phone-sized browser, the sandbox and live RDAP lookups, so it needs internet and Playwright's Chromium. Run a few with `run_all.py 3 8`. None of them call the real AI (step 9 uses a local stand-in for Groq), so results don't depend on the free quota; `GROQ_LIVE=1` adds one check against the real Groq API. Test runs use a throwaway history database, set via `SCAMCHECK_DB`.
 

@@ -61,6 +61,7 @@
   .verdict.warn { border-color: var(--warn); background: var(--warn-bg); } .verdict.warn h2 { color: var(--warn); }
   .verdict.good { border-color: var(--ok); background: var(--ok-bg); } .verdict.good h2 { color: var(--ok); }
   .todo { font-size: 18px; margin: 12px 0 0; }
+  .dest { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); word-break: break-word; }
   h3 { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 6px; }
   .why { list-style: none; padding: 0; margin: 0; }
   .why li { padding: 8px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; }
@@ -121,6 +122,7 @@ const T = {
     remove: "Remove", check: "Check it", checking: "Checking…",
     waking: "Starting up. The first check after a quiet spell can take up to a minute…",
     what: "What to do", why: "Why", more: "More reasons", how: "How we checked", link_opens: "What the link opens. We opened it safely, so you don't have to.",
+    goes_to: "This link really goes to", official_site: "(the official website)",
     paid: "I already paid or shared a code", paid_prefill: "I already paid ₹",
     paid_hint: "Add the amount, how you paid (UPI, card…) and when, if you know. I'll draft your police complaint.",
     again: "Check something else", call: "📞 Call 1930 now", call_sub: "National Cyber Crime Helpline, free, 24×7. The first hours matter most.",
@@ -145,6 +147,7 @@ const T = {
     remove: "हटाएँ", check: "जाँचें", checking: "जाँच हो रही है…",
     waking: "सर्वर शुरू हो रहा है। कुछ देर बाद पहली जाँच में एक मिनट तक लग सकता है…",
     what: "क्या करें", why: "क्यों", more: "और कारण", how: "हमने कैसे जाँचा", link_opens: "लिंक खोलने पर यह दिखता है। हमने इसे सुरक्षित तरीके से खोला, आपको खोलने की ज़रूरत नहीं।",
+    goes_to: "यह लिंक असल में यहाँ जाता है:", official_site: "(आधिकारिक वेबसाइट)",
     paid: "मैंने पैसे भेज दिए या कोड बता दिया", paid_prefill: "मैंने पैसे भेज दिए ₹",
     paid_hint: "अगर पता हो तो रकम, कैसे भेजा (UPI, कार्ड…) और कब, लिख दें। मैं आपकी पुलिस शिकायत तैयार कर दूँगा।",
     again: "कुछ और जाँचें", call: "📞 अभी 1930 पर कॉल करें", call_sub: "राष्ट्रीय साइबर क्राइम हेल्पलाइन, मुफ़्त, 24×7। शुरुआती घंटे सबसे ज़रूरी हैं।",
@@ -175,6 +178,7 @@ const HEAD = {
 const STEP = {
   read_screenshot: ["Reading the screenshot", "स्क्रीनशॉट पढ़ रहे हैं"],
   extract_indicators: ["Finding links, numbers and UPI IDs", "लिंक, नंबर और UPI ID ढूँढ रहे हैं"],
+  follow_redirects: ["Finding where the short link goes", "छोटा लिंक असल में कहाँ जाता है, देख रहे हैं"],
   match_scam_scripts: ["Comparing with known scams", "जाने-पहचाने धोखों से मिला रहे हैं"],
   check_domain: ["Checking who owns the website", "वेबसाइट किसकी है, जाँच रहे हैं"],
   check_url_reputation: ["Checking security blocklists", "सुरक्षा ब्लॉकलिस्ट जाँच रहे हैं"],
@@ -266,6 +270,9 @@ function detail(name, r) {
       return parts.length ? "Found " + parts.join(", ") + "." : "No links, numbers or UPI IDs in the message.";
     }
     case "match_scam_scripts": return r.matches?.length ? "Matches: " + r.matches.map(m => m.script).join(", ") + "." : "Doesn't match a known scam script.";
+    case "follow_redirects": return r.status === "ok" ? (r.hops.length > 1 ? `Goes to ${hostOf(r.final_url)}` +
+      (r.hops.length > 2 ? ` after ${r.hops.length - 1} redirects.` : ".") : "It doesn't redirect anywhere.") :
+      r.status === "dead" ? "The short link no longer works." : "Couldn't follow it.";
     case "check_domain": {
       if (r.is_official_domain) return `Official ${r.brand} website.`;
       const age = r.registration?.age_days;
@@ -285,6 +292,8 @@ function detail(name, r) {
   }
   return "";
 }
+
+const hostOf = u => { try { return new URL(u).hostname; } catch { return u; } };
 
 function renderProgress(checks) {
   const box = $("#progress"); box.hidden = false;
@@ -311,6 +320,7 @@ function renderResult(res, checks, shots) {
     <div class="card verdict ${cls}">
       <h2 tabindex="-1" id="vh">${esc(HEAD[v]?.[res.language] || HEAD[v]?.English || v)}</h2>
       ${res.scam_type ? `<div class="type">${esc(res.scam_type)}</div>` : ""}
+      ${(res.link_destinations || []).map(d => `<p class="dest">🔗 ${t("goes_to")} <b>${esc(d.goes_to)}</b>${d.official ? " " + t("official_site") : ""}</p>`).join("")}
       <h3>${t("what")}</h3>
       <p class="todo">${esc(res.user_message)}</p>
       ${why.length ? `<h3>${t("why")}</h3>${reasons(why.slice(0, TOP_REASONS))}` : ""}

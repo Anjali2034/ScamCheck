@@ -13,6 +13,8 @@ from scamcheck.config import DATA_DIR, HTTP_TIMEOUT
 _tld = tldextract.TLDExtract(suffix_list_urls=())
 _BRANDS = json.loads((DATA_DIR / "brands.json").read_text(encoding="utf-8"))
 
+SHORTENERS = frozenset(_BRANDS["shorteners"])
+
 HOMOGLYPHS = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s"})
 
 
@@ -20,6 +22,13 @@ def registrable_domain(url_or_host: str) -> str:
     host = urlsplit(url_or_host).hostname if "://" in url_or_host else url_or_host
     ext = _tld(host or "")
     return ext.top_domain_under_public_suffix or (host or "")
+
+
+def short_link_id(url: str) -> str:
+    """'https://bit.ly/abc123?x=1' -> 'bit.ly/abc123': what "seen before" remembers for a short link. The shortener
+    itself (bit.ly) is never remembered as a scam, or every bit.ly link would look flagged."""
+    parts = urlsplit(url if "://" in url else "http://" + url)
+    return (parts.hostname or "") + (parts.path or "").rstrip("/")
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -65,7 +74,7 @@ def check_brand_impersonation(url: str) -> dict:
 
     if host.startswith("xn--") or ".xn--" in host:
         findings.append("Punycode (internationalised) domain; may use look-alike Unicode characters.")
-    if reg in _BRANDS["shorteners"]:
+    if reg in SHORTENERS:
         findings.append("URL shortener hides the real destination.")
     if ext.suffix.split(".")[-1] in _BRANDS["risky_tlds"]:
         findings.append(f".{ext.suffix} is a cheap TLD heavily used for phishing.")

@@ -70,14 +70,40 @@ def _analyse_phone(number: str) -> dict:
 
 def _investigate_url(url: str, emit: Event) -> dict:
     d = _tool("check_domain", _check_domain, emit, url=url)
-    entry = {"url": url, "domain": d, "reputation": None, "sandbox": None}
+    entry = {"url": url, "domain": d, "reputation": None, "sandbox": None, "destination": None}
     if d.get("is_official_domain"):
         return entry  # an official bank site isn't worth a sandbox visit or a reputation lookup
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    # A short link (bit.ly/…) says nothing about where it goes, so find out first: every website check then runs on
+    # the real destination too, alongside the sandbox visit.
+    hop = _tool("follow_redirects", sandbox.follow_redirects, emit, url=url) if d.get("registrable_domain") in domain.SHORTENERS else {}
+    target = hop.get("final_url") if hop.get("status") == "ok" and _elsewhere(hop.get("final_url"), d) else None
+    with ThreadPoolExecutor(max_workers=3) as pool:
         rep = pool.submit(_tool, "check_url_reputation", reputation.check_url_reputation, emit, url=url)
         box = pool.submit(_tool, "visit_in_sandbox", sandbox.visit_url, emit, url=url)
+        dest = pool.submit(_investigate_destination, target, emit) if target else None
         entry["reputation"], entry["sandbox"] = rep.result(), box.result()
+        entry["destination"] = dest.result() if dest else None
+    landed = (entry["sandbox"] or {}).get("final_url") if (entry["sandbox"] or {}).get("status") == "ok" else None
+    if landed and _elsewhere(landed, d) and not (target and domain.registrable_domain(landed) == domain.registrable_domain(target)):
+        entry["destination"] = _investigate_destination(landed, emit)  # any link that redirects elsewhere, e.g. by script
+    if entry["destination"] and hop.get("destination_down"):
+        entry["destination"]["down"] = True
     return entry
+
+
+def _elsewhere(url: str | None, d: dict) -> bool:
+    return bool(url) and domain.registrable_domain(url) != d.get("registrable_domain")
+
+
+def _investigate_destination(url: str, emit: Event) -> dict:
+    """The website checks for where a link really ends up (its page was already opened by the sandbox visit)."""
+    d = _tool("check_domain", _check_domain, emit, url=url)
+    dest = {"url": url, "domain": d, "reputation": None, "history": None}
+    if not d.get("is_official_domain"):
+        dest["reputation"] = _tool("check_url_reputation", reputation.check_url_reputation, emit, url=url)
+        dest["history"] = _tool("check_indicator_history", history.lookup_previous_reports, emit,
+                                kind="domain", value=d.get("registrable_domain", ""))
+    return dest
 
 
 def gather(new_text: str, all_text: str, emit: Event) -> dict:
@@ -86,7 +112,8 @@ def gather(new_text: str, all_text: str, emit: Event) -> dict:
     urls = ind.get("urls", [])[:MAX_URLS]
     lookups = ([("upi", u["vpa"]) for u in ind.get("upi_ids", [])] + [("email", e) for e in ind.get("emails", [])]
                + [("handle", h) for h in ind.get("messaging_handles", [])]
-               + [("domain", domain.registrable_domain(u)) for u in urls])
+               + [("domain", domain.registrable_domain(u)) for u in urls if domain.registrable_domain(u) not in domain.SHORTENERS]
+               + [("short_link", domain.short_link_id(u)) for u in urls if domain.registrable_domain(u) in domain.SHORTENERS])
     with ThreadPoolExecutor(max_workers=8) as pool:
         url_jobs = [pool.submit(_investigate_url, u, emit) for u in urls]
         script_job = pool.submit(_tool, "match_scam_scripts", scripts.match_scam_scripts, emit, text=all_text)
@@ -172,6 +199,7 @@ class Investigation:
         result["complaint"] = self.complaint
         result["otp_warning"] = otp_warning
         result["language"] = rules.language(all_text)
+        result["link_destinations"] = rules.link_destinations(self.findings)
         result["indicators"] = rules.suspect_indicators(self.findings)
         if result["verdict"] in ("SCAM", "LIKELY_SCAM", "SUSPICIOUS") and result["indicators"]:
             history.record_indicators(result["indicators"], result["verdict"], result["scam_type"])
@@ -234,7 +262,7 @@ class Investigation:
         f, ind = fields or {}, self.findings["indicators"]
         paid_text = next((t for t in reversed(self.texts) if rules.PAID_RE.search(t)), "")
         amounts = extract.AMOUNT_RE.findall(paid_text)
-        suspects = ([u["domain"].get("host", u["url"]) for u in self.findings["urls"] if not u["domain"].get("is_official_domain")]
+        suspects = ([u["domain"].get("host", u["url"]) for u in rules._links(self.findings) if not u["domain"].get("is_official_domain")]
                     + [u["vpa"] for u in ind.get("upi_ids", [])] + ind.get("phone_numbers", [])
                     + ind.get("emails", []) + ind.get("messaging_handles", []))
         method = re.search(r"\b(upi|gpay|google pay|phonepe|paytm|bhim|card|net ?banking|neft|imps)\b", paid_text, re.I)
@@ -267,7 +295,7 @@ def defang(text: str, domains: list[str]) -> str:
 
 def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
     """Turn a verdict (or its complaint draft) into WhatsApp text (WhatsApp supports *bold* and _italic_)."""
-    scam_domains = [i["value"] for i in result.get("indicators", []) if i["kind"] == "domain"]
+    scam_domains = [i["value"] for i in result.get("indicators", []) if i["kind"] in ("domain", "short_link")]
     if complaint:
         return defang(result["complaint"]["complaint_text"], scam_domains)
     if not result.get("verdict"):
@@ -280,6 +308,8 @@ def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
     key = [e for e in result.get("evidence", []) if e["severity"] in ("critical", "high", "reassuring")][:4]
     if key:
         parts += ["", "*Evidence*"] + [f"• {e['finding']} _({e['source']})_" for e in key]
+    for d in result.get("link_destinations", []):  # the real address, defanged below unless it's an official site
+        parts += ["", f"🔗 That link really goes to *{d['goes_to']}*" + (" (the official website)" if d["official"] else "")]
     if result.get("already_paid"):
         parts += ["", "📞 *Call 1930 now* (National Cyber Crime Helpline), then report at cybercrime.gov.in"]
     if result.get("limited"):

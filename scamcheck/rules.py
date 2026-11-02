@@ -5,6 +5,7 @@ This is what answers when the free AI quota runs out, and it is the floor the AI
 import re
 
 from scamcheck import otp_shield
+from scamcheck.tools.domain import SHORTENERS, short_link_id
 
 VERDICTS = ["SAFE", "LIKELY_SAFE", "INCONCLUSIVE", "SUSPICIOUS", "LIKELY_SCAM", "SCAM"]  # mildest first
 
@@ -39,7 +40,7 @@ def _ev(source: str, finding: str, severity: str) -> dict:
     return {"source": source, "finding": finding, "severity": severity}
 
 
-def _url_evidence(u: dict) -> list[dict]:
+def _link_evidence(u: dict) -> list[dict]:
     out, d = [], u["domain"]
     host = d.get("host", u["url"])
     if d.get("is_official_domain"):
@@ -85,6 +86,38 @@ def _url_evidence(u: dict) -> list[dict]:
     elif sb_visit.get("status") == "dead":
         out.append(_ev("Sandbox visit", "The website no longer exists. Phishing sites are often taken down within days.", "medium"))
     return out
+
+
+def _url_evidence(u: dict) -> list[dict]:
+    """A link's evidence, plus its real destination's when it redirects (a bit.ly link, a page that forwards)."""
+    out, dest = _link_evidence(u), u.get("destination")
+    if not dest:
+        return out
+    # Now that the destination is known, "a shortener hides it" no longer applies; and if the destination is an
+    # official site, the shortener's own name says nothing about who sent it.
+    out = [e for e in out if "shortener hides" not in e["finding"]
+           and not (dest["domain"].get("is_official_domain") and e["source"] in ("Brand impersonation check", "Link check"))]
+    out += _link_evidence(dest)
+    h = dest.get("history") or {}
+    bad = sum(n for v, n in (h.get("verdicts") or {}).items() if v in ("SCAM", "LIKELY_SCAM"))
+    if bad:
+        out.append(_ev("Earlier ScamCheck reports", f"{h['value']} was flagged as a scam in {bad} earlier check"
+                       + ("s" if bad > 1 else "") + ".", "high"))
+    if dest.get("down"):
+        out.append(_ev("Link check", "The short link points to a website that no longer exists.", "medium"))
+    return out
+
+
+def _links(findings: dict) -> list[dict]:
+    """Every link and every real destination."""
+    return [x for u in findings["urls"] for x in (u, u.get("destination")) if x]
+
+
+def link_destinations(findings: dict) -> list[dict]:
+    """Where links really go, to show the person: "bit.ly/abc goes to sbi-kyc-update.xyz"."""
+    return [{"link": u["url"], "goes_to": u["destination"]["domain"].get("host") or u["destination"]["url"],
+             "official": bool(u["destination"]["domain"].get("is_official_domain"))}
+            for u in findings["urls"] if u.get("destination")]
 
 
 def evidence_from(findings: dict, text: str) -> list[dict]:
@@ -148,7 +181,7 @@ def floor_for(evidence: list[dict]) -> str:
 def scam_type_from(findings: dict, evidence: list[dict]) -> str:
     if findings["scripts"].get("matches"):
         return findings["scripts"]["matches"][0]["script"]
-    brand = next((u["domain"].get("possible_impersonated_brand") for u in findings["urls"]
+    brand = next((u["domain"].get("possible_impersonated_brand") for u in _links(findings)
                   if u["domain"].get("possible_impersonated_brand")), None)
     if brand:
         return f"Fake {brand} website"
@@ -210,8 +243,12 @@ def user_message(verdict: str, already_paid: bool, text: str) -> str:
 def suspect_indicators(findings: dict) -> list[dict]:
     """What to remember for "seen before" checks, when the verdict is bad. Official domains are never recorded."""
     ind = findings["indicators"]
-    out = [{"kind": "domain", "value": u["domain"]["registrable_domain"]} for u in findings["urls"]
-           if not u["domain"].get("is_official_domain") and u["domain"].get("registrable_domain")]
+    out = [{"kind": "domain", "value": u["domain"]["registrable_domain"]} for u in _links(findings)
+           if not u["domain"].get("is_official_domain") and u["domain"].get("registrable_domain")
+           and u["domain"]["registrable_domain"] not in SHORTENERS]
+    # A short link is remembered as itself (bit.ly/abc123), never as "bit.ly", or every bit.ly link would look flagged.
+    out += [{"kind": "short_link", "value": short_link_id(u["url"])} for u in findings["urls"]
+            if u["domain"].get("registrable_domain") in SHORTENERS]
     out += [{"kind": "upi", "value": u["vpa"]} for u in ind.get("upi_ids", [])]
     out += [{"kind": "phone", "value": p} for p in ind.get("phone_numbers", [])]
     out += [{"kind": "email", "value": e} for e in ind.get("emails", [])]
