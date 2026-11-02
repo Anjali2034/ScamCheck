@@ -466,7 +466,7 @@ def test_whatsapp_webhook_one_message_in_one_reply_out(monkeypatch):
     calls, on_batch = _collector()
     sent, typing = [], []
     monkeypatch.setattr(server, "_whatsapp_job", on_batch)
-    monkeypatch.setattr(whatsapp, "send", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(whatsapp, "send", lambda to, text, urgent=False: sent.append((to, text)))
     monkeypatch.setattr(whatsapp, "mark_read_and_typing", typing.append)
     monkeypatch.setattr(server.wa_inbox, "quiet_seconds", 0.3)
     client = TestClient(server.app)

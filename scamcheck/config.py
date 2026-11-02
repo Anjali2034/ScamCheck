@@ -26,6 +26,26 @@ IS_PRODUCTION = is_production()
 # Free tier, no card: https://console.groq.com/keys. Without a key, verdicts come from rules alone.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MODEL = os.getenv("SCAMCHECK_MODEL", "openai/gpt-oss-120b")
+GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions")  # overridden only by end-to-end tests
+
+
+def _int(name: str, default: int) -> int:
+    """A limit from the environment. A typo or blank keeps the default rather than turning the limit off."""
+    try:
+        return max(0, int(os.getenv(name, "").strip()))
+    except ValueError:
+        return default
+
+
+# Free-tier budgets (see quota.py). Defaults leave headroom under Groq's 200K tokens/day and Meta's 1,000 free
+# service messages/month per number.
+AI_DAILY_TOKENS = _int("SCAMCHECK_AI_DAILY_TOKENS", 180_000)
+AI_CHECKS_PER_PERSON_PER_DAY = _int("SCAMCHECK_AI_CHECKS_PER_PERSON", 25)
+WEB_CHECKS_PER_NETWORK_PER_10_MIN = _int("SCAMCHECK_WEB_CHECKS_PER_10_MIN", 30)
+WHATSAPP_MONTHLY_MESSAGES = _int("SCAMCHECK_WHATSAPP_MONTHLY_MESSAGES", 950)
+WHATSAPP_CHECKS_PER_NUMBER_PER_DAY = _int("SCAMCHECK_WHATSAPP_CHECKS_PER_DAY", 40)
+# Where people go when WhatsApp is out of free replies. Render sets RENDER_EXTERNAL_URL itself.
+PUBLIC_URL = (os.getenv("SCAMCHECK_PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/")
 
 # Screenshot OCR (Tesseract, free, on this machine). Docker installs it system-wide; on Windows it isn't on PATH.
 _WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")

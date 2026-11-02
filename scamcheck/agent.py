@@ -6,7 +6,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from scamcheck import llm, ocr, otp_shield, rules
+from scamcheck import llm, ocr, otp_shield, quota, rules
 from scamcheck.tools import complaint, domain, extract, history, reputation, sandbox, scripts
 
 Event = Callable[[dict], None]
@@ -29,6 +29,8 @@ Reply with only this JSON:
 {"verdict": "SCAM|LIKELY_SCAM|SUSPICIOUS|INCONCLUSIVE|LIKELY_SAFE|SAFE", "confidence": "high|medium|low", "scam_type": "short label, or empty if not a scam", "user_message": "...", "already_paid": false, "wording_observations": [{"finding": "...", "severity": "critical|high|medium|low"}], "complaint": null or {"fraud_type": "upi|card|netbanking|investment|task|digital_arrest|ewallet|other", "incident_summary": "first person, chronological", "amount_lost_inr": "", "payment_method": "", "transaction_ids": [], "transaction_datetime": "", "suspect_identifiers": [], "victim_bank": ""}}"""
 
 HELP = "Forward me the suspicious message, link, UPI ID or phone number and I'll check it."
+LIMIT_REASON = {"busy": "the free AI is busy", "daily": "today's free AI checks are used up",
+                "person": "you've had today's share of AI checks"}
 
 
 def _tool(name: str, fn: Callable[..., dict], emit: Event, **args) -> dict:
@@ -119,7 +121,9 @@ class Investigation:
         self.verdict: dict | None = None
         self.complaint: dict | None = None
 
-    def run(self, text: str = "", images: list[tuple[bytes, str]] | None = None, emit: Event = lambda e: None) -> dict:
+    def run(self, text: str = "", images: list[tuple[bytes, str]] | None = None, emit: Event = lambda e: None,
+            person: str = "") -> dict:
+        """`person` ("web:<id>", "wa:<number>") is who the free AI budget is shared fairly between; "" for the CLI."""
         text, _ = otp_shield.mask_otps(text)  # the server masks first; this also covers the CLI
         screenshot_text, codes_in_screenshots, unreadable = self._read_screenshots(images or [], emit)
         if unreadable and not text.strip():
@@ -148,11 +152,17 @@ class Investigation:
 
         emit({"type": "status", "message": "Weighing the evidence…"})
         ai_complaint = None
-        try:
-            ai = llm.complete_json(SYSTEM_PROMPT, self._prompt(all_text, evidence, verdict, already_paid))
-            result, ai_complaint = self._apply_ai(result, ai, evidence, emit)
-        except llm.AIUnavailable as e:
-            emit({"type": "status", "message": f"AI unavailable ({e}), so the rule-based verdict stands."})
+        allowed, limit = quota.ai_allowed(person, already_paid)
+        if not allowed:
+            result["limited"] = limit
+            emit({"type": "status", "message": f"AI skipped ({LIMIT_REASON[limit]}), so the rule-based verdict stands."})
+        else:
+            try:
+                ai = llm.complete_json(SYSTEM_PROMPT, self._prompt(all_text, evidence, verdict, already_paid))
+                quota.record_ai_check(person)
+                result, ai_complaint = self._apply_ai(result, ai, evidence, emit)
+            except llm.AIUnavailable as e:
+                emit({"type": "status", "message": f"AI unavailable ({e}), so the rule-based verdict stands."})
 
         if result["already_paid"]:
             self.complaint = self._draft_complaint(ai_complaint, result["scam_type"])
@@ -269,6 +279,9 @@ def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
         parts += ["", "*Evidence*"] + [f"• {e['finding']} _({e['source']})_" for e in key]
     if result.get("already_paid"):
         parts += ["", "📞 *Call 1930 now* (National Cyber Crime Helpline), then report at cybercrime.gov.in"]
+    if result.get("limited"):
+        parts += ["", f"_Quick check: {LIMIT_REASON[result['limited']]}, so this answer comes from the rule-based checks. "
+                      "Every check still ran._"]
     if result.get("otp_warning"):  # a code in a screenshot: the warning matters more than the verdict
         parts = [result["otp_warning"], ""] + parts
     return defang("\n".join(parts), scam_domains)

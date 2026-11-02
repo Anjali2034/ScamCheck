@@ -34,7 +34,7 @@ def check(name, ok, detail=""):
 class FakeInvestigation:
     fail = False
 
-    def run(self, text, images, emit):
+    def run(self, text, images, emit, person=""):
         if self.fail:
             raise RuntimeError("boom: " + SECRET)
         for e in EVENTS:

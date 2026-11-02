@@ -7,9 +7,9 @@ import time
 
 import requests
 
-from scamcheck import config
+from scamcheck import config, quota
 
-API_URL = "https://api.groq.com/openai/v1/chat/completions"
+API_URL = config.GROQ_API_URL
 
 
 class AIUnavailable(Exception):
@@ -33,15 +33,21 @@ def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
         except requests.RequestException as e:
             raise AIUnavailable(f"network: {e}") from None
         if r.status_code == 429:
-            wait = float(r.headers.get("retry-after") or 999)
+            try:
+                wait = float(r.headers.get("retry-after") or 60)
+            except ValueError:
+                wait = 60
             if attempt == 0 and wait <= 10:  # a per-minute limit clears quickly; worth one short wait
                 time.sleep(wait)
                 continue
+            quota.pause_ai(wait)  # e.g. the daily limit: later checks go straight to rules instead of waiting to be refused
             raise AIUnavailable("free quota reached")
         if not r.ok:
             raise AIUnavailable(f"HTTP {r.status_code}")
         try:
-            return json.loads(r.json()["choices"][0]["message"]["content"])
+            data = r.json()
+            quota.record_ai_tokens(int((data.get("usage") or {}).get("total_tokens") or 0))
+            return json.loads(data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, ValueError) as e:
             raise AIUnavailable(f"unreadable answer: {e}") from None
     raise AIUnavailable("free quota reached")

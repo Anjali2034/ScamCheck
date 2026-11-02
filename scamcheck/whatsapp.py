@@ -6,7 +6,7 @@ import hmac
 
 import requests
 
-from scamcheck import config
+from scamcheck import config, quota
 
 MAX_BODY = 4000  # the Cloud API caps a text message at 4,096 characters
 HANDLED_TYPES = {"text", "image", "audio", "video", "document", "interactive", "button"}  # not reactions or stickers
@@ -103,11 +103,15 @@ def _chunks(text: str) -> list[str]:
     return out
 
 
-def send(to: str, text: str) -> None:
+def send(to: str, text: str, urgent: bool = False) -> None:
+    """`urgent` (OTP warnings, the "out of free replies" notice) may use the small reserve kept back each month."""
     if not is_configured():
         print(f"[whatsapp not configured] reply to {to}:\n{text}")
         return
     for part in _chunks(text):
+        if not quota.take_whatsapp_message(urgent):
+            print("[whatsapp] this month's free messages are used up; not sending")
+            return
         # preview_url off: a link preview would fetch the scam page and show its logo, making it look legitimate.
         _post({"messaging_product": "whatsapp", "to": to.lstrip("+"), "type": "text",
                "text": {"body": part, "preview_url": False}})

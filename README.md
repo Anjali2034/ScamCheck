@@ -43,9 +43,9 @@ Open http://localhost:8000/demo for the **developer view**: sample messages, eve
 
 **CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for a screenshot). It stays open for follow-ups like "I already paid ₹4,999".
 
-**Tests:** `pytest` runs the offline test suite (71 tests). It needs no API keys or network.
+**Tests:** `pytest` runs the offline test suite (86 tests). It needs no API keys or network.
 
-**End-to-end:** `python tests/e2e/run_all.py` runs one suite per build step (143 checks) against a real server, a real phone-sized browser, the sandbox and live RDAP lookups, so it needs internet and Playwright's Chromium. Run a few with `run_all.py 3 8`. The AI is switched off for these, so results don't depend on the free quota; `GROQ_LIVE=1` adds one check against the real Groq API. Test runs use a throwaway history database, set via `SCAMCHECK_DB`.
+**End-to-end:** `python tests/e2e/run_all.py` runs one suite per build step (165 checks) against a real server, a real phone-sized browser, the sandbox and live RDAP lookups, so it needs internet and Playwright's Chromium. Run a few with `run_all.py 3 8`. None of them call the real AI (step 9 uses a local stand-in for Groq), so results don't depend on the free quota; `GROQ_LIVE=1` adds one check against the real Groq API. Test runs use a throwaway history database, set via `SCAMCHECK_DB`.
 
 ## Hooking up WhatsApp (Meta's free test number)
 
@@ -69,6 +69,20 @@ All optional; each one you leave out is skipped, and a skipped check never count
 - **Groq** (the AI): https://console.groq.com/keys. Free, no card. Free tier: about 30 requests/min, 1,000/day, 8K tokens/min, 200K tokens/day, which is roughly 50 checks a day. Groq states it doesn't train on customer data. (Gemini's free tier was ruled out: Google uses free-tier prompts for training and human review, and people forward personal bank messages here.)
 - **Google Safe Browsing:** create a Google Cloud project, enable the "Safe Browsing API", then create an API key.
 - **VirusTotal:** sign up, then go to profile → API key (free tier: 4 requests/min, non-commercial use).
+
+## Staying free (quota guard)
+
+Every free tier has a ceiling, and [quota.py](scamcheck/quota.py) keeps ScamCheck under each one. **Nobody hits a dead end:** past a soft limit every check still runs and only the AI is skipped, and the reply says so honestly ("today's free AI checks are used up, so this answer comes from the rule-based checks").
+
+| Limit | Default | Why |
+|---|---|---|
+| AI tokens per day | 180,000 | Groq's free tier allows 200K/day. A check uses about 1,200 tokens, so that's roughly 150 AI checks a day. **The last 10% is kept for people who say they've lost money**, because the AI fills in their complaint. |
+| AI checks per person per day | 25 | One person can't use up everyone's AI. Someone who has lost money is never cut off by this. |
+| Web checks per network per 10 min | 30 | Stops floods (a bot, a stuck script) with a kind 429 that still gives safety basics and 1930. Generous on purpose: Jio and Airtel put thousands of phones behind one address (CGNAT). New session ids don't reset it. |
+| WhatsApp messages per month | 950 | Meta gives 1,000 free service messages a month per number. The last 50 are kept for OTP warnings and a one-time "out of free replies, use the web page" notice. |
+| WhatsApp checks per number per day | 40 | Then one "today's limit" notice and silence, so extra messages don't spend the allowance. |
+
+When Groq answers "too many requests" for longer than a few seconds, the AI is paused for as long as Groq asks, so later checks go straight to rules instead of waiting to be refused. Counts live in the same SQLite file as the history, so a restart doesn't reset them; on Render's free disk a redeploy does, and Groq's own limit is the backstop. `/api/health` shows what's left today. Every limit can be changed in `.env` (see `.env.example`); a typo keeps the default rather than switching the limit off.
 
 ## Architecture
 

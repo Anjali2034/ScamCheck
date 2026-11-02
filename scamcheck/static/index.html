@@ -133,6 +133,10 @@ const T = {
     err_net: "Couldn't reach ScamCheck. Check your internet and try again.", err_fail: "Something went wrong on our side. Please try again.",
     paste_fallback: "Long-press the box and tap Paste.", not_image: "That file isn't an image. Add a screenshot instead.",
     no_checks: "Nothing to check yet.",
+    err_busy: "Too many checks from your network right now. Please wait a few minutes and try again. Meanwhile: don't click links, don't pay, and never share an OTP or PIN. If you've lost money, call 1930 now.",
+    limited_busy: "The free AI is busy right now,", limited_daily: "Today's free AI checks are used up,",
+    limited_person: "You've had today's share of AI checks,",
+    limited_tail: "so this answer comes from our rule-based checks. Every check still ran.",
   },
   hi: {
     title: "क्या यह धोखा है?",
@@ -153,6 +157,10 @@ const T = {
     err_net: "ScamCheck तक नहीं पहुँच पाए। इंटरनेट चेक करके फिर कोशिश करें।", err_fail: "हमारी तरफ़ कुछ गड़बड़ हुई। कृपया फिर कोशिश करें।",
     paste_fallback: "बॉक्स को दबाकर रखें और Paste दबाएँ।", not_image: "यह इमेज नहीं है। स्क्रीनशॉट जोड़ें।",
     no_checks: "अभी जाँचने को कुछ नहीं।",
+    err_busy: "आपके नेटवर्क से अभी बहुत ज़्यादा जाँचें हो रही हैं। कुछ मिनट रुककर फिर कोशिश करें। तब तक: लिंक न खोलें, पैसे न भेजें, और कोई OTP या PIN न बताएं। अगर पैसे गए हैं, तो अभी 1930 पर कॉल करें।",
+    limited_busy: "मुफ़्त AI अभी व्यस्त है,", limited_daily: "आज की मुफ़्त AI जाँचें खत्म हो गई हैं,",
+    limited_person: "आज की आपकी AI जाँचें पूरी हो गई हैं,",
+    limited_tail: "इसलिए यह जवाब हमारे नियमों वाली जाँच से है। बाकी सभी जाँचें फिर भी हुईं।",
   },
 };
 // The verdict heading follows the language the person wrote in, which can differ from the page language.
@@ -311,6 +319,7 @@ function renderResult(res, checks, shots) {
       <details><summary>${t("how")}</summary><ul class="checks">${[...checks.values()].map(c =>
         `<li>✅ <span>${esc(STEP[c.name]?.[lang === "hi" ? 1 : 0] || c.name)}</span><span class="d">${esc(detail(c.name, c.result))}</span></li>`).join("")
         || `<li>${t("no_checks")}</li>`}</ul></details>
+      ${res.limited ? `<p class="hint" id="limited">${t("limited_" + res.limited) || ""} ${t("limited_tail")}</p>` : ""}
     </div>
     ${c ? `<div class="card">
       <h3 style="margin-top:0">${t("steps")}</h3><ol>${c.urgent_steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
@@ -363,7 +372,7 @@ $("#f").onsubmit = async ev => {
   try {
     const resp = await fetch("/api/investigate", { method: "POST", body: fd, signal: ctl.signal });
     clearTimeout(waking);
-    if (!resp.ok) throw new Error(resp.status === 413 ? "err_big" : "err_fail");
+    if (!resp.ok) throw new Error(resp.status === 413 ? "err_big" : resp.status === 429 ? "err_busy" : "err_fail");
     await readNdjson(resp, e => {
       if (e.type === "tool_call" && STEP[e.name]) { checks.set(e.name + checks.size, { name: e.name }); renderProgress(checks); }
       else if (e.type === "tool_result") {

@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
-from scamcheck import config, inbox, otp_shield, whatsapp
+from scamcheck import config, inbox, otp_shield, quota, whatsapp
 from scamcheck.agent import Investigation, format_for_whatsapp
 
 WHATSAPP_SETTINGS = ("WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN")
@@ -132,7 +132,20 @@ def _investigate(key: str, label: str, text: str, images: list, emit, public: bo
 
     publish({"type": "start", "text": text[:500], "has_image": bool(images)})
     with lock:
-        return inv.run(text=text, images=images, emit=both)
+        return inv.run(text=text, images=images, emit=both, person=key)
+
+
+def client_network(request: Request) -> str:
+    """The address a check came from. Behind Render's proxy that's the last X-Forwarded-For entry, the one the
+    proxy added itself; anything earlier in the header is whatever the sender typed, so it can't dodge the limit."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if config.IS_PRODUCTION and forwarded:
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
+
+
+BUSY = ("Too many checks from your network right now. Please wait a few minutes and try again. Meanwhile: don't "
+        "click links, don't pay, and never share an OTP or PIN. If you've lost money, call 1930 now.")
 
 
 @app.get("/")
@@ -147,7 +160,10 @@ def demo():
 
 
 @app.post("/api/investigate")
-async def investigate(text: str = Form(""), session_id: str = Form("web"), image: UploadFile | None = File(None)):
+async def investigate(request: Request, text: str = Form(""), session_id: str = Form("web"),
+                      image: UploadFile | None = File(None)):
+    if not quota.web_check_allowed(client_network(request)):
+        raise HTTPException(429, BUSY)
     img = None
     if image and image.filename:
         data = await image.read()
@@ -217,6 +233,7 @@ def health():
         "safe_browsing": bool(config.SAFE_BROWSING_KEY),
         "virustotal": bool(config.VIRUSTOTAL_KEY),
         "whatsapp": whatsapp.is_configured(),
+        **quota.status(),
     }
 
 
@@ -224,8 +241,32 @@ COMPLAINT_HEADER = ("📝 *Your complaint draft* (copy into cybercrime.gov.in). 
                     "so they can't be tapped by mistake; type them normally when you file.\n\n")
 
 
+def _web_page() -> str:
+    return f"the ScamCheck web page: {config.PUBLIC_URL}" if config.PUBLIC_URL else "the ScamCheck web page"
+
+
+SAFETY_BASICS = "Meanwhile: don't click links, don't pay, and never share an OTP or PIN. If you've lost money, call 1930 now."
+
+
+def _over_whatsapp_limits(sender: str) -> bool:
+    """Out of free replies this month, or this number has had today's checks: say so once, with what to do instead."""
+    if quota.whatsapp_replies_left() <= 0:
+        if quota.first_notice(f"wa_month:{sender}", monthly=True):
+            whatsapp.send(sender, f"ScamCheck has used up this month's free WhatsApp replies. Please check messages on "
+                                  f"{_web_page()}. {SAFETY_BASICS}", urgent=True)
+        return True
+    if not quota.whatsapp_check_allowed(sender):
+        if quota.first_notice(f"wa_day:{sender}"):
+            whatsapp.send(sender, f"You've reached today's limit of checks on WhatsApp. Try again tomorrow, or use "
+                                  f"{_web_page()}. {SAFETY_BASICS}")
+        return True
+    return False
+
+
 def _whatsapp_job(sender: str, texts: list[str], media: list[inbox.Media]) -> None:
     """Investigate everything one person sent in a burst, as one message, and send one reply."""
+    if _over_whatsapp_limits(sender):
+        return
     try:
         images = [whatsapp.download_media(media_id) for media_id, kind in media if kind.startswith("image/")]
         result = _investigate(f"wa:{sender}", _mask(sender), "\n\n".join(texts), images, lambda e: None,
@@ -261,7 +302,7 @@ def _handle_whatsapp_message(m: dict) -> None:
                       "Forward me a suspicious SMS, link, screenshot, UPI ID or phone number and I'll check it.")
         return
     if hidden_codes:  # worth one extra message: they may be on the phone with the scammer right now
-        whatsapp.send(sender, otp_shield.warning(body))
+        whatsapp.send(sender, otp_shield.warning(body), urgent=True)
     wa_inbox.add(sender, body, images)
 
 

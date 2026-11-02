@@ -4,7 +4,7 @@
     python tests/e2e/run_all.py 3 8      # just steps 3 and 8
     GROQ_LIVE=1 python tests/e2e/run_all.py 8   # also one check against the real Groq AI (uses GROQ_API_KEY)
 
-Each suite prints PASS/FAIL per check and starts its own server on its own port. They never use the AI unless
+Each suite prints PASS/FAIL per check and starts its own server on its own port. They never call the real AI unless
 GROQ_LIVE=1, so results don't depend on the free quota. Unit tests are separate: `pytest`.
 """
 import os
@@ -22,14 +22,15 @@ wanted = {int(a) for a in sys.argv[1:]}
 if wanted:
     suites = [s for s in suites if int(s.name[4:s.name.index("_")]) in wanted]
 
-env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""), "PYTHONIOENCODING": "utf-8",
-       # A throwaway "seen before" history, so test runs don't pile fake reports into your real one.
-       "SCAMCHECK_DB": str(Path(tempfile.mkdtemp(prefix="scamcheck-e2e-")) / "history.db")}
+env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""), "PYTHONIOENCODING": "utf-8"}
 failed = []
 for s in suites:
     print(f"\n===== {s.stem}")
     t = time.monotonic()
-    code = subprocess.run([sys.executable, str(s)], cwd=ROOT, env=env).returncode
+    # Each suite gets a throwaway database: test runs never add fake reports or used-up budgets to your real one,
+    # and one suite's WhatsApp messages can't count against the next suite's monthly allowance.
+    db = Path(tempfile.mkdtemp(prefix="scamcheck-e2e-")) / "scamcheck.db"
+    code = subprocess.run([sys.executable, str(s)], cwd=ROOT, env={**env, "SCAMCHECK_DB": str(db)}).returncode
     print(f"      ({time.monotonic() - t:.0f}s)")
     if code:
         failed.append(s.stem)
