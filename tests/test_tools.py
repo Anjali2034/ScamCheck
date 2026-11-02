@@ -71,6 +71,38 @@ def test_script_matching():
     assert scripts.match_scam_scripts("Lunch at 1pm tomorrow?")["matches"] == []
 
 
+@pytest.mark.parametrize("text, script_id", [
+    # Written in Hindi, these used to match nothing at all.
+    ("प्रिय ग्राहक, आपका बिजली कनेक्शन आज रात 9 बजे काट दिया जाएगा। तुरंत 9876543210 पर कॉल करें।", "utility_disconnection"),
+    ("बधाई हो! आपने केबीसी लॉटरी में 25 लाख जीते हैं। इनाम के लिए 5000 रुपये प्रोसेसिंग फीस भेजें।", "lottery_prize"),
+    # "Aapne ... jeeti hai" is how people actually write "you have won".
+    ("Congratulations! Aapne 25 lakh ki KBC lottery jeeti hai. Prize lene ke liye 5000 rs processing fee bhejo", "lottery_prize"),
+    ("Your power will be disconnected tonight. Call 9876543210 immediately", "utility_disconnection"),
+])
+def test_textbook_scams_are_strong_matches(text, script_id):
+    top = scripts.match_scam_scripts(text)["matches"][0]
+    assert (top["id"], top["strength"]) == (script_id, "strong")
+
+
+def test_genuine_messages_dont_match_the_new_cues():
+    for text in ("Power cut in our area from 2 to 4 pm today for maintenance, says the board",
+                 "Call me on 9876543210 when you reach",
+                 "बिजली का बिल 1200 रुपये है, 15 तारीख तक जमा करें",
+                 "I won the office lottery pool, lunch is on me"):
+        assert all(m["strength"] == "weak" for m in scripts.match_scam_scripts(text)["matches"]), text
+
+
+@pytest.mark.parametrize("text, lang", [
+    ("Aapne 25 lakh ki lottery jeeti hai, fee bhejo", "Hinglish"),
+    ("Mera paisa kat gaya, kya karu?", "Hinglish"),
+    ("आपका खाता बंद हो जाएगा", "Hindi"),
+    ("Your account will be blocked, pay 5 lakh now", "English"),
+    ("Your parcel is held, the band mat is in customs", "English"),
+])
+def test_reply_language(text, lang):
+    assert rules.language(text) == lang
+
+
 def test_history_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "DB_PATH", tmp_path / "t.db")
     assert history.lookup_previous_reports("upi", "x@ybl")["times_seen"] == 0
@@ -257,6 +289,19 @@ def test_ai_writes_the_reply_and_may_warn_but_never_reassure(offline, monkeypatc
     assert r["checked_by"] == "ai" and r["user_message"] == "Ye fraud hai. Link mat kholo."
     ai_ev = [e for e in r["evidence"] if e["source"] == "Message wording (AI)"]
     assert [e["severity"] for e in ai_ev] == ["high", "medium"]  # 'reassuring' from the AI is downgraded
+
+
+def test_rules_reply_in_hinglish_and_call_a_lottery_fee_a_scam(offline):
+    r = Investigation().run("Congratulations! Aapne 25 lakh ki KBC lottery jeeti hai. Prize lene ke liye 5000 rs processing fee bhejo")
+    assert r["checked_by"] == "rules" and r["verdict"] in ("LIKELY_SCAM", "SCAM")
+    assert "mat bhejiye" in r["user_message"]
+
+
+def test_ai_is_told_which_language_to_reply_in(offline, monkeypatch):
+    prompts = []
+    monkeypatch.setattr(llm, "complete_json", lambda system, user, **k: prompts.append(user) or {})
+    Investigation().run("Aapka bijli connection aaj raat kat jayega, turant 9876543210 par call karo")
+    assert "Reply language: Hinglish." in prompts[0]
 
 
 def test_follow_up_after_paying_drafts_the_complaint_without_ai(offline):

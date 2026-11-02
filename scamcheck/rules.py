@@ -27,6 +27,10 @@ PAID_RE = re.compile(r"""(?ix)
     | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:shared|gave|told)\s+(?:\w+\s+){0,3}(?:otp|pin|cvv)
     | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:installed|downloaded)\s+(?:\w+\s+){0,3}(?:app|apk|anydesk|teamviewer|quicksupport)
 """)
+# Common Hindi words written in Latin letters. Two different ones mark a message as Hinglish.
+_HINGLISH_RE = re.compile(r"\b(aap|aapka|aapki|aapke|aapko|aapne|hai|hain|nahi|nahin|kya|karo|kare|karein|kijiye|bhejo|bhejiye|"
+                          r"mat|liye|raha|rahi|gaya|hoga|jayega|jaega|paisa|paise|mera|meri|maine|abhi|turant|jaldi|"
+                          r"rupaye|lene|dena|milega|jeeti|jeeta)\b", re.I)  # not "lakh": Indian English uses it too
 _FRAUD_TYPE = {"digital_arrest": "digital_arrest", "task_scam": "task", "investment_scam": "investment",
                "fake_kyc": "netbanking", "upi_refund_collect": "upi"}
 
@@ -156,31 +160,47 @@ def fraud_type_for(findings: dict, text: str) -> str:
     return "upi" if re.search(r"\b(upi|gpay|google pay|phonepe|paytm|bhim)\b", text, re.I) else "other"
 
 
+def language(text: str) -> str:
+    """"Hindi" (Devanagari), "Hinglish" (Hindi in Latin letters) or "English": the reply should match the person."""
+    if re.search(r"[ऀ-ॿ]", text):
+        return "Hindi"
+    return "Hinglish" if len({w.lower() for w in _HINGLISH_RE.findall(text)}) >= 2 else "English"
+
+
 def user_message(verdict: str, already_paid: bool, text: str) -> str:
     """The reply when the AI isn't available: short, calm, action first. Evidence is listed separately."""
-    hindi = bool(re.search(r"[ऀ-ॿ]", text))
+    lang = ["Hindi", "English", "Hinglish"].index(language(text))
     if already_paid:
-        return ("तुरंत 1930 पर कॉल करें (साइबर क्राइम हेल्पलाइन) और अपने बैंक को बताएं। जितनी जल्दी, पैसे रुकने की उतनी संभावना।"
-                if hindi else
+        return ("तुरंत 1930 पर कॉल करें (साइबर क्राइम हेल्पलाइन) और अपने बैंक को बताएं। जितनी जल्दी, पैसे रुकने की उतनी संभावना।",
                 "Call 1930 (Cyber Crime Helpline) right now, then your bank. The sooner you report, the better the "
-                "chance of freezing the money. I've drafted your complaint below.")
+                "chance of freezing the money. I've drafted your complaint below.",
+                "Abhi turant 1930 par call karein (Cyber Crime Helpline), phir apne bank ko batayein. Jitni jaldi report "
+                "karenge, paise rukne ki utni zyada sambhavna hai. Neeche aapki complaint ka draft hai.")[lang]
     msgs = {
         "SCAM": ("यह धोखा है। लिंक न खोलें, पैसे न भेजें, और कोई OTP या PIN न बताएं।",
-                 "This is a scam. Don't click the link, don't pay, and don't share any OTP or PIN."),
+                 "This is a scam. Don't click the link, don't pay, and don't share any OTP or PIN.",
+                 "Yeh scam hai. Link mat kholiye, paise mat bhejiye, aur koi OTP ya PIN kisi ko mat batayiye."),
         "LIKELY_SCAM": ("यह लगभग पक्का धोखा है। लिंक न खोलें, पैसे न भेजें, और कोई OTP या PIN न बताएं।",
-                        "This is very likely a scam. Don't click the link, don't pay, and don't share any OTP or PIN."),
+                        "This is very likely a scam. Don't click the link, don't pay, and don't share any OTP or PIN.",
+                        "Yeh lagbhag pakka scam hai. Link mat kholiye, paise mat bhejiye, aur koi OTP ya PIN mat batayiye."),
         "SUSPICIOUS": ("सावधान रहें, इसमें धोखे के संकेत हैं। कंपनी की आधिकारिक वेबसाइट पर दिए नंबर से खुद पुष्टि करें।",
                        "Be careful: this has warning signs. Check directly with the company using the number on its "
-                       "official website or the back of your card, not one from the message."),
+                       "official website or the back of your card, not one from the message.",
+                       "Saavdhan rahiye, ismein dhokhe ke sanket hain. Company ki official website par diye number se khud "
+                       "confirm kijiye, message wale number se nahi."),
         "LIKELY_SAFE": ("मुझे धोखे के संकेत नहीं मिले। फिर भी, कोई OTP या PIN किसी को न बताएं।",
-                        "I didn't find signs of a scam. Still, never share an OTP or PIN with anyone who calls or messages you."),
+                        "I didn't find signs of a scam. Still, never share an OTP or PIN with anyone who calls or messages you.",
+                        "Mujhe scam ke sanket nahi mile. Phir bhi, koi OTP ya PIN kisi ko mat batayiye."),
         "SAFE": ("यह सुरक्षित लगता है। फिर भी, कोई OTP या PIN किसी को न बताएं।",
-                 "This looks safe. Still, never share an OTP or PIN with anyone."),
+                 "This looks safe. Still, never share an OTP or PIN with anyone.",
+                 "Yeh safe lagta hai. Phir bhi, koi OTP ya PIN kisi ko mat batayiye."),
         "INCONCLUSIVE": ("मैं पक्का नहीं कह सकता। सावधानी रखें: लिंक न खोलें और पैसे न भेजें जब तक खुद पुष्टि न कर लें।",
                          "I couldn't find enough to be sure either way. Until you've checked it yourself, don't click, "
-                         "pay, or share any code."),
+                         "pay, or share any code.",
+                         "Main pakka nahi keh sakta. Jab tak khud confirm na kar lein, link mat kholiye, paise mat bhejiye "
+                         "aur koi code mat batayiye."),
     }
-    return msgs[verdict][0 if hindi else 1]
+    return msgs[verdict][lang]
 
 
 def suspect_indicators(findings: dict) -> list[dict]:

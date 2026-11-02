@@ -7,7 +7,7 @@
       "how_it_works": "Caller poses as CBI, ED, NCB, police, customs, TRAI or RBI. They say your Aadhaar, phone or a parcel is linked to drugs or money laundering, keep you on a video call ('digital arrest'), forbid you to tell anyone, and make you transfer money for 'verification'.",
       "fact": "No Indian agency arrests anyone over a video call or asks for money to 'verify' funds. 'Digital arrest' does not exist in Indian law.",
       "cues": [
-        {"re": "digital(ly)? arrest", "w": 5},
+        {"re": "digital(ly)? arrest|डिजिटल अरेस्ट", "w": 5},
         {"re": "\\b(cbi|ed|ncb|enforcement directorate|narcotics|crime branch|cyber cell|mumbai police|delhi police)\\b", "w": 2},
         {"re": "money laundering|hawala|drug(s)? (parcel|trafficking)", "w": 3},
         {"re": "arrest warrant|fir (has been|is) (registered|lodged)|case (has been )?registered against you", "w": 3},
@@ -40,10 +40,10 @@
       "how_it_works": "SMS says your bank account, card, PAN or SIM will be blocked unless you 'update KYC' via a link or app. The link steals your net-banking login and OTP, or installs a remote-access/SMS-stealing app.",
       "fact": "Banks never send KYC links by SMS or WhatsApp and never ask for OTP, PIN or password.",
       "cues": [
-        {"re": "kyc.{0,40}(expir|pending|update|incomplete|suspend|block)", "w": 4},
-        {"re": "(account|a/c|card|pan|sim|yono|net ?banking).{0,40}(block|suspend|deactivat|freeze|band ho)", "w": 3},
+        {"re": "kyc.{0,40}(expir|pending|update|incomplete|suspend|block)|(केवाईसी|kyc).{0,40}(अपडेट|बंद|ब्लॉक|समाप्त)", "w": 4},
+        {"re": "(account|a/c|card|pan|sim|yono|net ?banking).{0,40}(block|suspend|deactivat|freeze|band ho)|(खाता|अकाउंट|कार्ड|सिम).{0,40}(बंद|ब्लॉक)", "w": 3},
         {"re": "(update|link).{0,20}(pan|aadhaar|aadhar)", "w": 3},
-        {"re": "(within|in) \\d{1,2} ?(hours?|hrs|minutes?|mins)|today (itself|midnight)|aaj raat", "w": 2},
+        {"re": "(within|in) \\d{1,2} ?(hours?|hrs|minutes?|mins)|today (itself|midnight)|aaj raat|आज रात", "w": 2},
         {"re": "\\.apk\\b|download (the )?(app|apk)|anydesk|teamviewer|quick ?support|rustdesk", "w": 4},
         {"re": "(share|send|tell|enter).{0,20}\\b(otp|mpin|upi pin|cvv|password)\\b", "w": 4},
         {"re": "reward points?.{0,40}(expir|redeem|claim)", "w": 3}
@@ -70,10 +70,11 @@
       "how_it_works": "SMS claims your electricity will be cut tonight because the last bill wasn't updated, with a personal mobile number to call. The 'officer' gets you to install a remote-access app or pay a small fee via a link.",
       "fact": "Electricity boards don't send disconnection threats from personal mobile numbers.",
       "cues": [
-        {"re": "(electricity|bijli|power|light|gas) (connection|supply)?.{0,40}(disconnect|cut|kat)", "w": 4},
-        {"re": "(last|previous) month (bill|payment).{0,30}(not|nahi) (updated|update)", "w": 4},
-        {"re": "(contact|call).{0,20}(electricity )?officer", "w": 3},
-        {"re": "tonight|9[.:]30 ?pm|aaj raat", "w": 1}
+        {"re": "(electricity|bijli|power|light|gas) (connection|supply)?.{0,40}(disconnect|cut|kat)|(बिजली|गैस).{0,40}(काट|कट|बंद)", "w": 4},
+        {"re": "(last|previous) month (bill|payment).{0,30}(not|nahi) (updated|update)|पिछले (महीने|माह).{0,30}बिल.{0,30}(अपडेट नहीं|नहीं)", "w": 4},
+        {"re": "(contact|call).{0,20}(electricity )?officer|(अधिकारी|ऑफिसर).{0,20}(से संपर्क|को कॉल)", "w": 3},
+        {"re": "(disconnect|cut|kat|काट|कट|बंद).{0,80}[6-9]\\d{9}", "w": 4},
+        {"re": "tonight|9[.:]30 ?pm|aaj raat|आज रात", "w": 1}
       ]
     },
     {
@@ -93,9 +94,10 @@
       "how_it_works": "You've 'won' a KBC lottery, a car or a foreign gift, but must first pay 'processing', 'GST' or 'customs' charges.",
       "fact": "Real prizes never require you to pay to receive them.",
       "cues": [
-        {"re": "\\bkbc\\b|kaun banega|lucky draw|lottery|jackpot", "w": 4},
-        {"re": "(you|aap) (have )?(won|jeete|selected)", "w": 3},
-        {"re": "(processing|registration|gst|clearance|transfer) (fee|charge)s?", "w": 3},
+        {"re": "\\bkbc\\b|kaun banega|lucky draw|lottery|jackpot|लॉटरी|केबीसी|कौन बनेगा|लकी ड्रॉ", "w": 4},
+        {"re": "(you|aap) (have )?(won|jeete|selected)|aap ?ne\\b.{0,40}\\bjeet[aei]|आपने.{0,40}जीत", "w": 3},
+        {"re": "(processing|registration|gst|clearance|transfer) (fee|charge)s?|(प्रोसेसिंग|रजिस्ट्रेशन|जीएसटी) ?(फीस|शुल्क|चार्ज)", "w": 3},
+        {"re": "(prize|inaam|inam|इनाम|lottery|लॉटरी).{0,60}(fee|charge|pay|bhej|फीस|शुल्क|भेज)", "w": 3},
         {"re": "gift.{0,30}(from abroad|uk|usa|customs)", "w": 3}
       ]
     },
@@ -134,9 +136,9 @@
     }
   ],
   "general_red_flags": [
-    {"re": "urgent|immediately|turant|jaldi|last (chance|warning)|final notice", "flag": "Creates urgency to stop you thinking."},
+    {"re": "urgent|immediately|turant|jaldi|last (chance|warning)|final notice|तुरंत|जल्दी", "flag": "Creates urgency to stop you thinking."},
     {"re": "\\b(otp|mpin|upi pin|cvv)\\b", "flag": "Mentions OTP/PIN/CVV, which no legitimate party will ever ask for."},
-    {"re": "dear (customer|user|sir/madam)", "flag": "Generic greeting instead of your name."},
+    {"re": "dear (customer|user|sir/madam)|प्रिय ग्राहक", "flag": "Generic greeting instead of your name."},
     {"re": "(click|tap|open).{0,15}(link|below|here)", "flag": "Pushes you to click a link."},
     {"re": "whatsapp.{0,20}(only|me)|(don't|do not) call", "flag": "Insists on WhatsApp-only contact."}
   ]
