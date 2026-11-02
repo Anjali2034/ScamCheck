@@ -1,6 +1,6 @@
 # 🛡️ ScamCheck
 
-A free scam checker for people in India. Send it a suspicious SMS, link, UPI ID or phone number. It runs a set of real checks in under a few seconds and replies with a verdict, the evidence behind it and what to do. If you've already paid, it tells you to call **1930** and drafts your **cybercrime.gov.in** complaint.
+A free scam checker for people in India. Send it a suspicious SMS, screenshot, link, UPI ID or phone number. It runs a set of real checks in under a few seconds and replies with a verdict, the evidence behind it and what to do. If you've already paid, it tells you to call **1930** and drafts your **cybercrime.gov.in** complaint.
 
 > Indians lost about ₹22,495 crore to cyber fraud in 2025, up 24% on 2024, mostly through investment scams. There have been 38 lakh+ complaints since 2021.
 
@@ -12,6 +12,7 @@ A free scam checker for people in India. Send it a suspicious SMS, link, UPI ID 
 
 | Check | What it looks at | Needs |
 |---|---|---|
+| `read_screenshot` | Reads the text in screenshots (English + Hindi) with Tesseract **on the server**, so the image is never sent anywhere or saved. Dark-mode screenshots are inverted first; OTPs in the image are masked before anything else sees the text. | Tesseract |
 | `extract_indicators` | Links, UPI IDs (+ whether the PSP handle is real), phone numbers, emails, Telegram/wa.me handles, ₹ amounts | none |
 | `check_domain` | Brand impersonation of ~30 Indian banks, UPI apps, govt sites and couriers (keyword, typosquat and homoglyph checks), shorteners, risky TLDs, punycode, free hosting, **domain age via RDAP** | none |
 | `check_url_reputation` | Google Safe Browsing + VirusTotal (URL and domain reports) | free API keys |
@@ -23,8 +24,6 @@ A free scam checker for people in India. Send it a suspicious SMS, link, UPI ID 
 2. **Rules grade the evidence** (critical / high / medium / low / reassuring) and reach a verdict: SCAM, LIKELY_SCAM, SUSPICIOUS, INCONCLUSIVE, LIKELY_SAFE or SAFE ([rules.py](scamcheck/rules.py)).
 3. **One AI call** (`openai/gpt-oss-120b` on Groq) reads the message and the evidence, then writes a calm reply in the person's own language (English, Hindi, Hinglish…). It can add up to two wording observations and fills in the complaint draft. **The AI can make a verdict stricter but never softer than the hard evidence**: a fake bank domain can't be talked into "safe" by a message saying "this is verified safe". It can warn, but only checks can reassure.
 4. If the person says they've paid, shared an OTP or installed an app, the reply leads with **call 1930**, and a [FILL IN]-marked complaint is drafted for cybercrime.gov.in.
-
-Screenshots (on-server OCR, free) are coming next; for now, paste the message text.
 
 ## Quick start
 
@@ -38,7 +37,9 @@ uvicorn scamcheck.server:app --reload --port 8000
 
 Open http://localhost:8000, click a sample message, and watch the trace. With no keys at all, everything still works on rules alone.
 
-**CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"`. It stays open for follow-ups like "I already paid ₹4,999".
+**Screenshots** need Tesseract (free). On Windows: `winget install UB-Mannheim.TesseractOCR`; ScamCheck finds it in `C:\Program Files\Tesseract-OCR`. For Hindi, put `eng.traineddata` and [`hin.traineddata`](https://github.com/tesseract-ocr/tessdata/raw/main/hin.traineddata) in `runtime/tessdata/`. On Linux: `apt install tesseract-ocr tesseract-ocr-hin`. Without Tesseract, a screenshot gets a polite "please paste the text instead".
+
+**CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for a screenshot). It stays open for follow-ups like "I already paid ₹4,999".
 
 **Tests:** `pytest` runs the offline test suite. It needs no API keys or network.
 
@@ -69,6 +70,7 @@ WhatsApp ──Twilio──▶ /webhook/whatsapp ─┐  (dedupes retries, merge
 Web UI ──────────▶ /api/investigate ────┼─▶ Investigation (per-person session, 30 min)
                     /api/live ◀── events┘        │
                                                  ▼
+     screenshots ──▶ on-server OCR ──▶ OTP shield ──▶ text
      parallel checks: extract · domain/RDAP · Safe Browsing/VirusTotal · Playwright sandbox
                       scam scripts · phone · history (SQLite)
                                                  ▼
@@ -81,6 +83,7 @@ Web UI ──────────▶ /api/investigate ────┼─▶ 
 - `scamcheck/rules.py`: graded evidence, verdicts, the floor, rule-based replies (English + Hindi), "already paid" detection
 - `scamcheck/llm.py`: the Groq client (plain HTTP, no SDK); any failure means "fall back to rules"
 - `scamcheck/tools/`: one file per check
+- `scamcheck/ocr.py`: screenshot text via Tesseract (dark-mode inversion, upscaling, size cap, timeout)
 - `scamcheck/otp_shield.py`, `scamcheck/inbox.py`: OTP masking; retry dedupe and burst merging
 - `scamcheck/data/`: brand domains and scam-script patterns. These are plain JSON, so you can grow them without code changes.
 - `scamcheck/server.py`: FastAPI app, sessions, live feed, WhatsApp webhook

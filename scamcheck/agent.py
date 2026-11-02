@@ -6,7 +6,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from scamcheck import llm, otp_shield, rules
+from scamcheck import llm, ocr, otp_shield, rules
 from scamcheck.tools import complaint, domain, extract, history, reputation, sandbox, scripts
 
 Event = Callable[[dict], None]
@@ -42,6 +42,13 @@ def _tool(name: str, fn: Callable[..., dict], emit: Event, **args) -> dict:
         result = {k: v for k, v in result.items() if k != "screenshot_path"}
     emit({"type": "tool_result", "name": name, "result": result})
     return result
+
+
+def _read_screenshot(data: bytes) -> dict:
+    """OCR, with any OTP masked before the text reaches the trace, the checks or the AI."""
+    r = ocr.read_text(data)
+    r["text"], r["otp_codes_hidden"] = otp_shield.mask_otps(r["text"])
+    return r
 
 
 def _check_domain(url: str) -> dict:
@@ -112,8 +119,14 @@ class Investigation:
 
     def run(self, text: str = "", images: list[tuple[bytes, str]] | None = None, emit: Event = lambda e: None) -> dict:
         text, _ = otp_shield.mask_otps(text)  # the server masks first; this also covers the CLI
-        if images and not text.strip():
-            return self._reply("I can't read screenshots yet. Please paste the message text, link or number instead.")
+        screenshot_text, codes_in_screenshots, unreadable = self._read_screenshots(images or [], emit)
+        if unreadable and not text.strip():
+            return self._reply(unreadable)
+        otp_warning = otp_shield.warning(text + screenshot_text) if codes_in_screenshots else ""
+        if otp_warning:
+            emit({"type": "notice", "message": otp_warning})
+        if screenshot_text:
+            text = (text + "\n\n" if text.strip() else "") + "[Text read from screenshot]\n" + screenshot_text
         self.texts.append(text)
         all_text = "\n\n".join(self.texts)
 
@@ -142,12 +155,29 @@ class Investigation:
         if result["already_paid"]:
             self.complaint = self._draft_complaint(ai_complaint, result["scam_type"])
         result["complaint"] = self.complaint
+        result["otp_warning"] = otp_warning
         result["indicators"] = rules.suspect_indicators(self.findings)
         if result["verdict"] in ("SCAM", "LIKELY_SCAM", "SUSPICIOUS") and result["indicators"]:
             history.record_indicators(result["indicators"], result["verdict"], result["scam_type"])
         self.verdict = result
         emit({"type": "verdict", "verdict": result})
         return result
+
+    def _read_screenshots(self, images: list[tuple[bytes, str]], emit: Event) -> tuple[str, int, str]:
+        """OCR each image. Returns (masked text, OTP codes hidden, a reply for when nothing could be read)."""
+        texts, hidden, statuses = [], 0, []
+        for i, (data, _) in enumerate(images[:MAX_IMAGES], 1):
+            r = _tool("read_screenshot", lambda image: _read_screenshot(data), emit, image=i)
+            statuses.append(r.get("status"))
+            hidden += r.get("otp_codes_hidden", 0)
+            if r.get("status") == "ok":
+                texts.append(r["text"])
+        if texts or not images:
+            return "\n\n".join(texts), hidden, ""
+        if all(s == "unavailable" for s in statuses):
+            return "", 0, "I can't read screenshots right now. Please paste the message text, link or number instead."
+        return "", 0, ("I couldn't read any text in that image. Please send a screenshot cropped to the message, "
+                       "or paste the text.")
 
     def _prompt(self, all_text: str, evidence: list[dict], verdict: str, already_paid: bool) -> str:
         pages = [f"- {u['url']} → {u['sandbox'].get('final_url')}, title “{u['sandbox'].get('title', '')}”, "
@@ -224,4 +254,6 @@ def format_for_whatsapp(result: dict) -> str:
         parts += ["", "*Evidence*"] + [f"• {e['finding']} _({e['source']})_" for e in key]
     if result.get("already_paid"):
         parts += ["", "📞 *Call 1930 now* (National Cyber Crime Helpline), then report at cybercrime.gov.in"]
+    if result.get("otp_warning"):  # a code in a screenshot: the warning matters more than the verdict
+        parts = [result["otp_warning"], ""] + parts
     return "\n".join(parts)

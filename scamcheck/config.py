@@ -27,6 +27,11 @@ IS_PRODUCTION = is_production()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MODEL = os.getenv("SCAMCHECK_MODEL", "openai/gpt-oss-120b")
 
+# Screenshot OCR (Tesseract, free, on this machine). Docker installs it system-wide; on Windows it isn't on PATH.
+_WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+TESSERACT_CMD = os.getenv("TESSERACT_CMD") or (str(_WINDOWS_TESSERACT) if _WINDOWS_TESSERACT.exists() else "tesseract")
+TESSDATA_DIR = RUNTIME_DIR / "tessdata"  # optional local language data (e.g. Hindi) when the system install lacks it
+
 SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
 VIRUSTOTAL_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
 

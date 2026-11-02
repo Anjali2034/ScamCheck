@@ -1,9 +1,12 @@
 """Offline tests for the deterministic tools (no API keys or network needed)."""
+import io
+import re
 import time
 
 import pytest
+from PIL import Image, ImageDraw, ImageFont
 
-from scamcheck import inbox, otp_shield
+from scamcheck import inbox, ocr, otp_shield
 from scamcheck import agent, llm, rules
 from scamcheck.agent import Investigation, format_for_whatsapp
 from scamcheck.tools import complaint, domain, extract, history, scripts
@@ -276,6 +279,70 @@ def test_greetings_get_help_not_a_verdict(offline):
 def test_genuine_otp_sms_is_not_called_a_scam(offline):
     r = Investigation().run("Your OTP for HDFC Bank NetBanking login is 482913. Do not share it with anyone. -HDFC Bank")
     assert r["verdict"] == "LIKELY_SAFE" and any(e["severity"] == "reassuring" for e in r["evidence"])
+
+
+# --- screenshots (on-server OCR) ------------------------------------------------------------------------------------
+
+needs_ocr = pytest.mark.skipif(not ocr.available(), reason="Tesseract not installed")
+
+
+def _screenshot(lines, dark=False, fonts=("arial.ttf", "DejaVuSans.ttf")):
+    """A phone-style screenshot of an SMS, as PNG bytes."""
+    for name in fonts:
+        try:
+            font = ImageFont.truetype(name, 34)
+            break
+        except OSError:
+            continue
+    else:
+        pytest.skip("no suitable font installed")
+    img = Image.new("RGB", (900, 120 + 60 * len(lines)), (18, 18, 18) if dark else (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for i, line in enumerate(lines):
+        draw.text((40, 50 + 60 * i), line, fill=(235, 235, 235) if dark else (20, 20, 20), font=font)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+
+KYC_SMS = ["Dear Customer, your SBI account will be", "BLOCKED today. Update KYC now:", "http://sbi-kyc-update.xyz/login"]
+
+
+@needs_ocr
+@pytest.mark.parametrize("dark", [False, True], ids=["light", "dark-mode"])
+def test_screenshot_of_a_scam_sms_is_read_and_caught(offline, dark):
+    r = Investigation().run(images=[(_screenshot(KYC_SMS, dark=dark), "image/png")])
+    assert r["verdict"] == "SCAM", r
+    assert any("not an official State Bank of India website" in e["finding"] for e in r["evidence"])
+
+
+@needs_ocr
+def test_otp_in_a_screenshot_is_hidden_everywhere_and_warned_first(offline):
+    events = []
+    r = Investigation().run(images=[(_screenshot(["Your OTP for HDFC Bank NetBanking", "login is 482913. Do not share it",
+                                                  "with anyone. -HDFC Bank"]), "image/png")], emit=events.append)
+    assert "482913" not in str(events) + str(r)
+    assert r["otp_warning"] and events[[e["type"] for e in events].index("notice")]  # warned in the trace
+    assert format_for_whatsapp(r).startswith(r["otp_warning"])  # and first on WhatsApp
+
+
+@needs_ocr
+def test_hindi_screenshot_is_read(offline):
+    png = _screenshot(["आपका बिजली कनेक्शन आज रात काट दिया जाएगा", "तुरंत 9876543210 पर कॉल करें"],
+                      fonts=("Nirmala.ttc", "Nirmala.ttf", "NotoSansDevanagari-Regular.ttf"))
+    read = ocr.read_text(png)
+    assert read["status"] == "ok" and re.search(r"[ऀ-ॿ]", read["text"]) and "9876543210" in read["text"]
+
+
+@needs_ocr
+@pytest.mark.parametrize("data", [b"not an image at all", "blank"], ids=["corrupt", "blank"])
+def test_unreadable_images_get_an_honest_reply(offline, data):
+    if data == "blank":
+        buf = io.BytesIO()
+        Image.new("RGB", (600, 900), (255, 255, 255)).save(buf, "PNG")
+        data = buf.getvalue()
+    r = Investigation().run(images=[(data, "image/png")])
+    assert r["verdict"] is None and "couldn't read any text" in r["user_message"]
 
 
 def test_seen_messages_drops_twilio_retries():

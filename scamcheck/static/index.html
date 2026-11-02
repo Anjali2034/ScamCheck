@@ -115,6 +115,7 @@ const TOOL_LABEL = {
   check_url_reputation: "Querying Safe Browsing and VirusTotal", visit_in_sandbox: "Opening link in sandboxed browser",
   match_scam_scripts: "Matching against known scam scripts", analyse_phone_number: "Analysing phone number",
   check_indicator_history: "Checking earlier reports", draft_cybercrime_complaint: "Drafting cybercrime.gov.in complaint",
+  read_screenshot: "Reading the screenshot (on this server)",
   submit_verdict: "Submitting verdict"
 };
 
@@ -167,6 +168,8 @@ function summarise(e) {
     case "analyse_phone_number": return `${r.country}; seen ${r.history?.times_seen || 0}× before`;
     case "check_indicator_history": return `seen ${r.times_seen}× before`;
     case "draft_cybercrime_complaint": return "Complaint draft ready";
+    case "read_screenshot": return r.status === "ok" ? `read ${r.text.length} characters` + (r.otp_codes_hidden ? ", OTP hidden" : "") :
+      { no_text: "no text found", unreadable: "not a readable image", unavailable: "OCR not installed" }[r.status] || r.status;
   }
   return "details";
 }
