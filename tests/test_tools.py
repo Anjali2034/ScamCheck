@@ -557,3 +557,34 @@ def test_sandbox_screenshot_is_shown_once_then_deleted(tmp_path):
                     url="https://example.com")
     assert not shot.exists() and "screenshot_path" not in r
     assert [e["type"] for e in events] == ["tool_call", "screenshot", "tool_result"]
+
+
+def test_hindi_misread_by_ocr_still_matches():
+    # Exactly what Tesseract returned on Render for a screenshot of the Hindi electricity scam.
+    ocr_text = "RA ग्राहक, आपका बजिली कनेकशन\nआज रात 9 बजे काट दयि जाएगा।\nतुरंत 9876543210 पर कॉल करें।"
+    top = scripts.match_scam_scripts(ocr_text)["matches"][0]
+    assert (top["id"], top["strength"]) == ("utility_disconnection", "strong")
+
+
+def _ai_says(monkeypatch, verdict):
+    monkeypatch.setattr(llm, "complete_json", lambda *a, **k: {
+        "verdict": verdict, "confidence": "high", "scam_type": "", "user_message": "No action is needed.",
+        "already_paid": False, "wording_observations": [], "complaint": None})
+
+
+def test_ai_cant_call_an_unknown_link_safe(offline, monkeypatch):
+    # Nothing found either way (a brand-new phishing site looks like this too): "couldn't tell", not "safe".
+    _ai_says(monkeypatch, "SAFE")
+    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit: {
+        "url": url, "domain": {"host": "example.com", "findings": [], "registration": {"age_days": 9000}},
+        "reputation": None, "sandbox": {"status": "ok", "title": "Example Domain"}})
+    r = Investigation().run("Is this genuine? https://example.com/login")
+    assert r["verdict"] == "INCONCLUSIVE" and "No action is needed" not in r["user_message"]
+
+
+def test_ai_can_say_safe_when_a_check_found_a_reason(offline, monkeypatch):
+    _ai_says(monkeypatch, "SAFE")
+    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit: {
+        "url": url, "domain": {"is_official_domain": True, "brand": "State Bank of India", "host": "onlinesbi.sbi"},
+        "reputation": None, "sandbox": None})
+    assert Investigation().run("Is this real? https://www.onlinesbi.sbi/")["verdict"] == "SAFE"

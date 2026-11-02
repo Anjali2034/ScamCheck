@@ -133,12 +133,16 @@ def verdict_from(evidence: list[dict]) -> tuple[str, str]:
 
 
 def floor_for(evidence: list[dict]) -> str:
-    """The mildest verdict the AI may give: it can be stricter than the rules, never softer than hard evidence."""
+    """The mildest verdict the AI may give: it can be stricter than the rules, never softer than hard evidence, and it
+    can't call something safe unless a check found a reason to (an official domain, a normal OTP message). A
+    brand-new phishing link with no red flags yet must read "couldn't tell", not "safe"."""
     if any(e["severity"] == "critical" for e in evidence):
         return "LIKELY_SCAM"
     if any(e["severity"] == "high" for e in evidence):
         return "SUSPICIOUS"
-    return "SAFE"
+    if any(e["severity"] == "reassuring" for e in evidence):
+        return "SAFE"
+    return "INCONCLUSIVE"
 
 
 def scam_type_from(findings: dict, evidence: list[dict]) -> str:
