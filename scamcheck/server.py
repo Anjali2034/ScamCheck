@@ -136,11 +136,11 @@ def _investigate(key: str, label: str, text: str, images: list, emit, public: bo
 
 
 def client_network(request: Request) -> str:
-    """The address a check came from. Behind Render's proxy that's the last X-Forwarded-For entry, the one the
-    proxy added itself; anything earlier in the header is whatever the sender typed, so it can't dodge the limit."""
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if config.IS_PRODUCTION and forwarded:
-        return forwarded.split(",")[-1].strip()
+    """The address a check came from. On Render, Cloudflare writes CF-Connecting-IP on every request and overwrites
+    whatever the sender typed. X-Forwarded-For isn't used: Cloudflare only appends to it, so its first entry is
+    whatever the sender typed, and its last is a proxy that many people share."""
+    if config.IS_PRODUCTION and (cf := request.headers.get("cf-connecting-ip", "").strip()):
+        return cf
     return request.client.host if request.client else "unknown"
 
 

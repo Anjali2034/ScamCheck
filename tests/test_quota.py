@@ -97,13 +97,17 @@ def test_web_flood_gets_a_kind_429_and_other_networks_dont_notice(monkeypatch):
     assert quota.web_check_allowed("10.9.9.9")
 
 
-def test_behind_the_proxy_a_typed_forwarded_header_cant_dodge_the_limit(monkeypatch):
+def test_on_render_the_address_comes_from_cloudflare_not_a_typed_header(monkeypatch):
     monkeypatch.setattr(config, "IS_PRODUCTION", True)
 
     class Req:
-        client = None
-        headers = {"x-forwarded-for": "1.1.1.1, 49.36.10.20"}  # sender typed 1.1.1.1; the proxy added the real one
+        class client:
+            host = "10.0.0.7"  # Render's proxy
+        headers = {"x-forwarded-for": "1.1.1.1, 49.36.10.20, 172.70.1.1",  # typed, real, a shared proxy
+                   "cf-connecting-ip": "49.36.10.20"}  # Cloudflare overwrites this one
     assert server.client_network(Req) == "49.36.10.20"
+    Req.headers = {"x-forwarded-for": "1.1.1.1"}  # no Cloudflare header: never trust a typed one
+    assert server.client_network(Req) == "10.0.0.7"
 
 
 @pytest.fixture
