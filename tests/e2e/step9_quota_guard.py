@@ -1,5 +1,5 @@
-"""End-to-end checks for step #9 (quota guard): the real server against local stand-ins for Groq and Meta, with
-small limits so they're reached quickly. Run with tests/e2e/run_all.py."""
+"""End-to-end: the free-tier budgets, against local stand-ins for Groq and Meta with small limits so they're
+reached quickly."""
 import atexit
 import json
 import os

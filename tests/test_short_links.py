@@ -1,7 +1,7 @@
 """Short links (bit.ly/…): find where they really go, and judge that."""
 import pytest
 
-from scamcheck import agent, config, llm, rules
+from scamcheck import agent, config
 from scamcheck.agent import Investigation, format_for_whatsapp
 from scamcheck.tools import domain, sandbox
 

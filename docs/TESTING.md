@@ -73,13 +73,13 @@ Notice: if you'd just lost money, is the first thing you see the right thing?
 ### A fresh start every time
 
 1. Check message 6 (Hindi).
-2. **Reload the page** (F5), paste message 3 and check it. It must get the grey "Couldn't tell for sure" in English, with no trace of the Hindi scam. (This was a bug fixed today: a reload used to continue the old conversation.)
+2. **Reload the page** (F5), paste message 3 and check it. It must get the grey "Couldn't tell for sure" in English, with no trace of the Hindi scam.
 3. Check message 1, then tap **Check something else** and check message 11. The second result must stand on its own.
 
 ### Checking the same thing again
 
 1. Check message 10 three times.
-2. All three should give the same verdict, and none should say "1 other person who checked it…": your own checks never count against you. (Also fixed today: repeat checks used to pile up as "flagged in 14 earlier checks".)
+2. All three should give the same verdict, and none should say "1 other person who checked it…": your own checks never count against you.
 
 ### Screenshots
 
@@ -137,8 +137,8 @@ Note that every deploy wipes the live history.
 These are what a reviewer would run:
 
 ```powershell
-pytest                          # about 190 offline tests, under a minute, no internet needed
-python tests\e2e\run_all.py     # 165 checks against a real server and browser, about 10 minutes, needs internet
+pytest                          # offline unit tests, under a minute, no internet needed
+python tests\e2e\run_all.py     # end-to-end suites against a real server and browser, about 10 minutes, needs internet
 python tests\e2e\run_all.py 8   # just one suite (8 = the public page)
 ```
 

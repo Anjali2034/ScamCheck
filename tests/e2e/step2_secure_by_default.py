@@ -1,4 +1,4 @@
-"""Real-process checks for step #2 (webhooks fail closed in production), on Meta's signing since fix #7."""
+"""End-to-end: in production the server refuses unsafe configurations and rejects unsigned or forged webhooks."""
 import atexit
 import hashlib
 import hmac

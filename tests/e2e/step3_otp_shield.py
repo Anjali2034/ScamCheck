@@ -1,4 +1,4 @@
-"""End-to-end checks for step #3 (OTP shield) against a real server. Run with tests/e2e/run_all.py."""
+"""End-to-end: OTPs are hidden before anything logs, stores or streams them, and the warning goes out first."""
 import atexit
 import os
 import subprocess

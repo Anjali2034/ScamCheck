@@ -1,4 +1,4 @@
-"""End-to-end checks for step #6 (screenshot OCR) through the real server and a real browser upload."""
+"""End-to-end: screenshot OCR (English, Hindi, dark mode) through the real server and a real browser upload."""
 import atexit
 import os
 import subprocess

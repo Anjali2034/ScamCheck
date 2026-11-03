@@ -1,7 +1,7 @@
 """Run the end-to-end suites: a real server, real browser, real sandbox and real RDAP lookups (needs internet).
 
-    python tests/e2e/run_all.py          # every step
-    python tests/e2e/run_all.py 3 8      # just steps 3 and 8
+    python tests/e2e/run_all.py          # every suite
+    python tests/e2e/run_all.py 3 8      # just suites 3 and 8
     GROQ_LIVE=1 python tests/e2e/run_all.py 8   # also one check against the real Groq AI (uses GROQ_API_KEY)
 
 Each suite prints PASS/FAIL per check and starts its own server on its own port. They never call the real AI unless

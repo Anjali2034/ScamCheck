@@ -1,4 +1,4 @@
-"""End-to-end checks for step #4 (one message in, one reply out) against a real server with real timing."""
+"""End-to-end: webhook retries are ignored and a burst of messages gets one reply, with real timing."""
 import atexit
 import json
 import os

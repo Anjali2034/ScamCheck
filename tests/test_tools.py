@@ -72,7 +72,7 @@ def test_script_matching():
 
 
 @pytest.mark.parametrize("text, script_id", [
-    # Written in Hindi, these used to match nothing at all.
+    # Scam messages written in Hindi and Hinglish.
     ("प्रिय ग्राहक, आपका बिजली कनेक्शन आज रात 9 बजे काट दिया जाएगा। तुरंत 9876543210 पर कॉल करें।", "utility_disconnection"),
     ("बधाई हो! आपने केबीसी लॉटरी में 25 लाख जीते हैं। इनाम के लिए 5000 रुपये प्रोसेसिंग फीस भेजें।", "lottery_prize"),
     # "Aapne ... jeeti hai" is how people actually write "you have won".

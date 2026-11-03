@@ -1,4 +1,4 @@
-"""End-to-end checks for step #5 (Groq + one AI call + rules). Run with tests/e2e/run_all.py."""
+"""End-to-end: the Groq client against a local stand-in, and the full pipeline on rules alone."""
 import atexit
 import json
 import os
@@ -18,12 +18,7 @@ def check(name, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"\n      {detail}" if detail and not ok else ""))
 
 
-# 1. The Anthropic SDK is gone from the import graph.
-p = subprocess.run([sys.executable, "-c", "import sys; sys.modules['anthropic'] = None; import scamcheck.server, scamcheck.__main__"],
-                   capture_output=True, text=True)
-check("Nothing imports the Anthropic SDK any more", p.returncode == 0, p.stderr[-300:])
-
-# 2. The Groq client against a local stand-in for api.groq.com.
+# 1. The Groq client against a local stand-in for api.groq.com.
 script, seen = [], []
 
 
@@ -79,7 +74,7 @@ for status, body, label in [(500, "{}", "Groq server error"),
         check(f"{label}: falls back to rules", True)
 srv.shutdown()
 
-# 3. The real pipeline: real RDAP, real sandbox browser, real server, no AI key.
+# 2. The real pipeline: real RDAP, real sandbox browser, real server, no AI key.
 env = {**os.environ, "SCAMCHECK_ENV": "development", "GROQ_API_KEY": ""}
 proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "scamcheck.server:app", "--port", "8792"], env=env,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

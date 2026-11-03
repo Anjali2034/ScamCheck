@@ -1,5 +1,5 @@
-"""End-to-end checks for step #7 (WhatsApp via Meta Cloud API): the real ScamCheck server against a local stand-in
-for graph.facebook.com, with real signatures, real OCR and real link checks."""
+"""End-to-end: WhatsApp via Meta's Cloud API, against a local stand-in for graph.facebook.com, with real signatures,
+real OCR and real link checks."""
 import atexit
 import hashlib
 import hmac

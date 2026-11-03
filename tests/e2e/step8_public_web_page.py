@@ -1,4 +1,4 @@
-"""End-to-end checks for step #8 (public mobile web page): a real server, a real phone-sized browser. Run with tests/e2e/run_all.py."""
+"""End-to-end: the public mobile web page, in a real phone-sized browser against a real server."""
 import atexit
 import os
 import random
@@ -224,7 +224,7 @@ with sync_playwright() as p:
     check("Dark mode: dark background", bg == "rgb(15, 18, 22)", bg)
     submit(page, KYC)
     check("Dark mode: verdict renders", page.locator("#result .verdict.bad").count() == 1)
-    page.screenshot(path=str(SCRATCH / "fix8_dark.png"), full_page=True)
+    page.screenshot(path=str(SCRATCH / "dark_mode.png"), full_page=True)
     ctx.close()
 
     # Phone language Hindi: the page opens in Hindi.
@@ -247,7 +247,7 @@ if os.getenv("GROQ_LIVE") == "1":
         check("Live AI: Hinglish heading and Hinglish advice", page.inner_text("#result .verdict h2") in ("Yeh scam hai", "Lagbhag pakka scam"),
               page.inner_text("#result")[:400])
         print("      advice:", page.inner_text("#result .todo"))
-        page.screenshot(path=str(SCRATCH / "fix8_live.png"), full_page=True)
+        page.screenshot(path=str(SCRATCH / "live_reply.png"), full_page=True)
         b.close()
     proc.kill()
 

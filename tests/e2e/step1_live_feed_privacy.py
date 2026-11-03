@@ -1,4 +1,4 @@
-"""End-to-end checks for step #1 (live-feed privacy). Run with tests/e2e/run_all.py."""
+"""End-to-end: the live feed shows strangers' checks only as tool names and a verdict, never their content."""
 import asyncio
 import os
 import subprocess
@@ -94,7 +94,6 @@ def live_server_checks():
         check("Server boots; /api/health responds", requests.get(base + "/api/health").ok)
         check("GET / serves the page", "ScamCheck" in requests.get(base + "/").text)
 
-        # Replies' wording is covered by fixes #3, #4 and #7; here the webhook just has to accept Meta's format.
         check("Webhook: Meta-format message accepted", meta_hook.post(base, "p1", "917777777777", "reset").ok)
 
         from playwright.sync_api import sync_playwright
@@ -108,7 +107,7 @@ def live_server_checks():
             page.wait_for_timeout(800)
             # A real stranger's message through the real webhook.
             check("Webhook: real message accepted", meta_hook.post(base, "p2", "917777777777", SECRET).ok)
-            # Since fix #5 the check succeeds on rules alone (no AI key needed); wait for its verdict after the 8 s burst window.
+            # No AI key is needed: the rules give a verdict once the 8 s burst window has passed.
             page.wait_for_selector("#live .ev.verdict", timeout=60000)
             live_text = page.inner_text("#live")
             check("Browser live feed shows the stranger's check, never the secret",
