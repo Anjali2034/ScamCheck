@@ -111,7 +111,8 @@
         {"re": "(scan|enter (your )?(upi )?pin).{0,30}(receive|refund|get|cashback|prize)|(स्कैन|पिन (डालें|डालिए|दर्ज)).{0,30}(पाने|रिफंड|कैशबैक|इनाम|मिलेगा)|(पाने|रिफंड|कैशबैक|वापस).{0,40}(पिन (डालें|डालिए|दर्ज)|स्कैन)|(paane|refund|cashback|wapas).{0,40}(pin daal|scan kar)", "w": 5},
         {"re": "(refund|cashback).{0,40}(collect request|approve|accept|scan|qr)|(रिफंड|कैशबैक).{0,40}(रिक्वेस्ट|अप्रूव|स्वीकार|एक्सेप्ट|स्कैन|क्यूआर)|(refund|cashback).{0,40}(request|approve)", "w": 4},
         {"re": "(army|cisf|crpf) (officer|jawan|person).{0,40}(buy|purchase|rent)|(आर्मी|सीआईएसएफ|सीआरपीएफ|फौजी).{0,40}(खरीद|किराए)", "w": 3},
-        {"re": "olx|quikr|facebook marketplace", "w": 1}
+        {"re": "olx|quikr|facebook marketplace", "w": 1},
+        {"re": "(return|refund|get (my |your |the )?(money|refund)|receive|give back|cashback|prize|वापस|रिफंड|पैसे मिल|पाने|wapas|paise mil|paane).{0,60}((accept|approve|स्वीकार|अप्रूव|एक्सेप्ट).{0,30}(request|रिक्वेस्ट)|(request|रिक्वेस्ट).{0,20}(accept|approve|स्वीकार|अप्रूव|एक्सेप्ट))|((accept|approve|स्वीकार|अप्रूव|एक्सेप्ट).{0,30}(request|रिक्वेस्ट)|(request|रिक्वेस्ट).{0,20}(accept|approve|स्वीकार|अप्रूव|एक्सेप्ट)).{0,60}(return|refund|get (my |your |the )?(money|refund)|receive|give back|cashback|prize|वापस|रिफंड|पैसे मिल|पाने|wapas|paise mil|paane)", "w": 5}
       ]
     },
     {

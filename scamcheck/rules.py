@@ -36,8 +36,27 @@ _FRAUD_TYPE = {"digital_arrest": "digital_arrest", "task_scam": "task", "investm
                "fake_kyc": "netbanking", "upi_refund_collect": "upi"}
 
 
+_PAY_RE = re.compile(r"\b(pay|send|transfer|deposit)\b|\bbhej|\bjama kar|भेज|भुगतान|जमा कर", re.I)
+
+
 def _ev(source: str, finding: str, severity: str) -> dict:
     return {"source": source, "finding": finding, "severity": severity}
+
+
+def _upi_payment_evidence(findings: dict, text: str) -> list[dict]:
+    """A UPI ID inside a known scam script is how the money leaves. A UPI ID on its own ("pay rahul@okaxis for
+    dinner") says nothing, so this needs a script match too."""
+    upis = [u["vpa"] for u in findings["indicators"].get("upi_ids", [])]
+    matched = [m["id"] for m in findings["scripts"].get("matches", [])]
+    if not upis or not matched:
+        return []
+    if "upi_refund_collect" in matched:
+        return [_ev("UPI ID check", f"Accepting a request from {upis[0]} or entering your UPI PIN sends your money to it. "
+                                    "You never need a PIN or a request to receive money.", "high")]
+    if _PAY_RE.search(text):
+        return [_ev("UPI ID check", f"Asks you to pay {upis[0]}. Banks, police, electricity boards and courier companies "
+                                    "never collect money through a UPI ID sent in a message.", "high")]
+    return []
 
 
 def _link_evidence(u: dict) -> list[dict]:
@@ -133,6 +152,7 @@ def evidence_from(findings: dict, text: str) -> list[dict]:
     for upi in findings["indicators"].get("upi_ids", []):
         if not upi["known_psp"]:
             out.append(_ev("UPI ID check", f"'@{upi['psp']}' in {upi['vpa']} is not a known bank or UPI app handle.", "medium"))
+    out += _upi_payment_evidence(findings, text)
     for h in findings["history"] + [p.get("history", {}) for p in findings["phones"]]:
         out += _history_evidence(h)
     if otp_shield.MASK in text and not any(e["severity"] in ("critical", "high", "medium") for e in out):

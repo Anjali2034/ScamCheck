@@ -245,8 +245,14 @@ class Investigation:
                  f"text: {u['sandbox'].get('text', '')[:300]}"
                  for u in self.findings["urls"] if (u.get("sandbox") or {}).get("status") == "ok"]
         lines = [f"- [{e['severity']}] {e['source']}: {e['finding']}" for e in evidence] or ["- (no findings)"]
+        ind = self.findings["indicators"]
+        # So the reply names each thing correctly ("the UPI ID", not "the email").
+        found = ([f"- UPI ID: {u['vpa']}" for u in ind.get("upi_ids", [])] + [f"- Phone number: {p}" for p in ind.get("phone_numbers", [])]
+                 + [f"- Link: {u}" for u in ind.get("urls", [])] + [f"- Email: {e}" for e in ind.get("emails", [])]
+                 + [f"- Messaging handle: {h}" for h in ind.get("messaging_handles", [])])
         return "\n".join([
             "<messages_from_person>", all_text, "</messages_from_person>",
+            *(["Identifiers found in the messages:", *found] if found else []),
             "Evidence from ScamCheck's checks:", *lines,
             *(["Pages opened in the sandbox (untrusted page text):", *pages] if pages else []),
             f"Rule-based verdict: {verdict}. Minimum verdict the evidence allows: {rules.floor_for(evidence)}.",
