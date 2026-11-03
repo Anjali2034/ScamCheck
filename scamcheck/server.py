@@ -7,6 +7,7 @@ import hmac
 import json
 import threading
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -117,8 +118,10 @@ def redact_for_feed(e: dict) -> dict | None:
     return None  # thinking, text, screenshots, status
 
 
-def _investigate(key: str, label: str, text: str, images: list, emit, public: bool = False, reporter: str = "") -> dict:
-    """Run one turn of a conversation. Only `public` sessions (demo numbers) stream their content to the live feed."""
+def _investigate(key: str, label: str, text: str, images: list, emit, public: bool = False, reporter: str = "",
+                 person: str = "") -> dict:
+    """Run one turn of conversation `key`. `person` (default: the conversation) gets the fair share of AI checks.
+    Only `public` sessions (demo numbers) stream their content to the live feed."""
     inv, lock = sessions.get(key)
 
     def publish(e):
@@ -132,7 +135,7 @@ def _investigate(key: str, label: str, text: str, images: list, emit, public: bo
 
     publish({"type": "start", "text": text[:500], "has_image": bool(images)})
     with lock:
-        return inv.run(text=text, images=images, emit=both, person=key, reporter=reporter)
+        return inv.run(text=text, images=images, emit=both, person=person or key, reporter=reporter)
 
 
 def client_network(request: Request) -> str:
@@ -160,7 +163,7 @@ def demo():
 
 
 @app.post("/api/investigate")
-async def investigate(request: Request, text: str = Form(""), session_id: str = Form("web"),
+async def investigate(request: Request, text: str = Form(""), session_id: str = Form(""), visitor_id: str = Form(""),
                       image: UploadFile | None = File(None)):
     network = client_network(request)
     if not quota.web_check_allowed(network):
@@ -174,6 +177,8 @@ async def investigate(request: Request, text: str = Form(""), session_id: str = 
     if not text.strip() and not img:
         raise HTTPException(400, "Send some text or an image")
     text, hidden_codes = otp_shield.mask_otps(text)  # before anything can log, store or stream it
+    # No id means no follow-ups: never one shared conversation that every id-less caller would land in.
+    convo = session_id[:64] or uuid.uuid4().hex
 
     loop = asyncio.get_running_loop()
     q: asyncio.Queue = asyncio.Queue()
@@ -183,8 +188,8 @@ async def investigate(request: Request, text: str = Form(""), session_id: str = 
         if hidden_codes:
             emit({"type": "notice", "message": otp_shield.warning(text)})
         try:
-            result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, [img] if img else [], emit,
-                                          False, f"net:{network}")
+            result = await asyncio.to_thread(_investigate, f"web:{convo}", "web", text, [img] if img else [], emit,
+                                          False, f"net:{network}", f"web:{visitor_id[:64] or convo}")
             emit({"type": "done", "result": result, "whatsapp_text": format_for_whatsapp(result)})
         except Exception as e:
             emit({"type": "error", "message": str(e)})
@@ -204,7 +209,7 @@ async def investigate(request: Request, text: str = Form(""), session_id: str = 
 
 
 @app.post("/api/reset")
-def reset(session_id: str = Form("web")):
+def reset(session_id: str = Form("")):
     sessions.reset(f"web:{session_id}")
     return {"ok": True}
 

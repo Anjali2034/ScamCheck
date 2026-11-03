@@ -192,7 +192,12 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
                 set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-const sid = store.get("sid") || (() => { const v = Math.random().toString(36).slice(2); store.set("sid", v); return v; })();
+const newId = () => Math.random().toString(36).slice(2);
+// visitor: who this browser is, for the fair share of free AI checks (kept across visits).
+// convo: one conversation, so "I already paid" follows up on the check above it. A reload or "Check something else"
+// starts a new one: a message pasted later is never mixed up with an old one.
+const visitor = store.get("sid") || (() => { const v = newId(); store.set("sid", v); return v; })();
+let convo = newId();
 let lang = store.get("lang") || ((navigator.language || "").startsWith("hi") ? "hi" : "en");
 let image = null, last = null, busy = false;
 const t = k => T[lang][k];
@@ -355,8 +360,9 @@ function renderResult(res, checks, shots) {
 function clearImage() { image = null; $("#thumb").hidden = true; $("#image").value = ""; }
 
 async function startOver() {
-  const fd = new FormData(); fd.append("session_id", sid);
-  fetch("/api/reset", { method: "POST", body: fd }).catch(() => {});
+  const fd = new FormData(); fd.append("session_id", convo);
+  fetch("/api/reset", { method: "POST", body: fd }).catch(() => {});  // frees the old one on the server
+  convo = newId();
   last = null; $("#text").value = ""; clearImage(); $("#result").innerHTML = ""; $("#notice").hidden = true;
   $("#progress").hidden = true; $("#paid-hint").hidden = true; formError(null);
   window.scrollTo({ top: 0 }); $("#text").focus();
@@ -376,7 +382,7 @@ $("#f").onsubmit = async ev => {
   // A free server sleeps when idle; say so instead of looking frozen.
   const waking = setTimeout(() => { prog.innerHTML = `<li><span class="spinner" aria-hidden="true"></span><span>${t("waking")}</span></li>`; }, 5000);
   const ctl = new AbortController(), timeout = setTimeout(() => ctl.abort(), 150000);
-  const fd = new FormData(); fd.append("text", text); fd.append("session_id", sid);
+  const fd = new FormData(); fd.append("text", text); fd.append("session_id", convo); fd.append("visitor_id", visitor);
   if (image) fd.append("image", image, image.name || "screenshot.jpg");
   let result;
   try {
