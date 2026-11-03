@@ -98,6 +98,8 @@ def test_genuine_messages_dont_match_the_new_cues():
     ("आपका खाता बंद हो जाएगा", "Hindi"),
     ("Your account will be blocked, pay 5 lakh now", "English"),
     ("Your parcel is held, the band mat is in customs", "English"),
+    ("Bhai kal ki party ki photos yahan hain", "Hinglish"),
+    ("Thanks bhai, see you at the office tomorrow", "English"),
 ])
 def test_reply_language(text, lang):
     assert rules.language(text) == lang
@@ -588,3 +590,11 @@ def test_ai_can_say_safe_when_a_check_found_a_reason(offline, monkeypatch):
         "url": url, "domain": {"is_official_domain": True, "brand": "State Bank of India", "host": "onlinesbi.sbi"},
         "reputation": None, "sandbox": None})
     assert Investigation().run("Is this real? https://www.onlinesbi.sbi/")["verdict"] == "SAFE"
+
+
+@pytest.mark.parametrize("text", ["Is this ok?  https://example.org", "क्या यह ठीक है? https://example.org",
+                                  "Kya yeh theek hai bhai? https://example.org"])
+def test_a_cant_tell_reply_never_tells_people_to_block_or_report(text):
+    # Most messages people check are genuine; "report your friend to the police" makes the tool useless.
+    msg = rules.user_message("INCONCLUSIVE", False, text)
+    assert not re.search(r"block|report|cybercrime|police|1930|ब्लॉक|रिपोर्ट|पुलिस", msg, re.I)

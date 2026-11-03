@@ -35,7 +35,8 @@ PAID_RE = re.compile(r"""(?ix)
 # Common Hindi words written in Latin letters. Two different ones mark a message as Hinglish.
 _HINGLISH_RE = re.compile(r"\b(aap|aapka|aapki|aapke|aapko|aapne|hai|hain|nahi|nahin|kya|karo|kare|karein|kijiye|bhejo|bhejiye|"
                           r"mat|liye|raha|rahi|gaya|hoga|jayega|jaega|paisa|paise|mera|meri|maine|abhi|turant|jaldi|"
-                          r"rupaye|lene|dena|milega|jeeti|jeeta)\b", re.I)  # not "lakh": Indian English uses it too
+                          r"rupaye|lene|dena|milega|jeeti|jeeta|bhai|yaar|yahan|wahan|mein|tum|tumhe|hum|humne|kaise|"
+                          r"kyun|kyunki|accha|theek)\b", re.I)  # not "lakh": Indian English uses it too
 _FRAUD_TYPE = {"digital_arrest": "digital_arrest", "task_scam": "task", "investment_scam": "investment",
                "fake_kyc": "netbanking", "upi_refund_collect": "upi"}
 
@@ -278,11 +279,12 @@ def user_message(verdict: str, already_paid: bool, text: str) -> str:
         "SAFE": ("यह सुरक्षित लगता है। फिर भी, कोई OTP या PIN किसी को न बताएं।",
                  "This looks safe. Still, never share an OTP or PIN with anyone.",
                  "Yeh safe lagta hai. Phir bhi, koi OTP ya PIN kisi ko mat batayiye."),
-        "INCONCLUSIVE": ("मैं पक्का नहीं कह सकता। सावधानी रखें: लिंक न खोलें और पैसे न भेजें जब तक खुद पुष्टि न कर लें।",
-                         "I couldn't find enough to be sure either way. Until you've checked it yourself, don't click, "
-                         "pay, or share any code.",
-                         "Main pakka nahi keh sakta. Jab tak khud confirm na kar lein, link mat kholiye, paise mat bhejiye "
-                         "aur koi code mat batayiye."),
+        "INCONCLUSIVE": ("मुझे इसमें कुछ गलत नहीं मिला, पर मैं पक्का नहीं कह सकता कि यह असली है। अगर यह किसी जान-पहचान "
+                         "वाले का है, तो पैसे भेजने से पहले उनसे पहले से सेव नंबर पर पूछ लें।",
+                         "I didn't find anything wrong, but I can't confirm it's genuine. If it's from someone you know, "
+                         "check with them on a number you already have before you pay or click.",
+                         "Mujhe ismein kuch galat nahi mila, par main pakka nahi keh sakta ki yeh asli hai. Agar yeh kisi "
+                         "jaan-pehchaan wale ka hai, to paise bhejne se pehle unse pehle se save number par pooch lijiye."),
     }
     return msgs[verdict][lang]
 
