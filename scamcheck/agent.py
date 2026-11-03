@@ -190,7 +190,7 @@ class Investigation:
         emit({"type": "status", "message": "Running the checks…"})
         self.findings = _merge(self.findings, gather(text, all_text, emit, me))
         evidence = rules.evidence_from(self.findings, all_text)
-        already_paid = bool(rules.PAID_RE.search(all_text))
+        already_paid = rules.says_paid(self.texts)
         if not evidence and not already_paid and not any(self.findings["indicators"].get(k) for k in
                                                          ("urls", "upi_ids", "phone_numbers", "emails", "messaging_handles")):
             if len(text.split()) < 6:  # "hi", "hello?": nothing to check
@@ -288,7 +288,7 @@ class Investigation:
 
     def _draft_complaint(self, fields: dict | None, scam_type: str) -> dict:
         f, ind = fields or {}, self.findings["indicators"]
-        paid_text = next((t for t in reversed(self.texts) if rules.PAID_RE.search(t)), "")
+        paid_text = next((t for t in reversed(self.texts) if rules.says_paid([t])), "")
         amounts = extract.AMOUNT_RE.findall(paid_text)
         suspects = ([u["domain"].get("host", u["url"]) for u in rules._links(self.findings) if not u["domain"].get("is_official_domain")]
                     + [u["vpa"] for u in ind.get("upi_ids", [])] + ind.get("phone_numbers", [])

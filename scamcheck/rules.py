@@ -23,7 +23,7 @@ _OTP_FLAG = "Mentions OTP/PIN/CVV"
 
 # First person only: scam texts themselves say "your bill was not paid", which must not read as a confession.
 PAID_RE = re.compile(r"""(?ix)
-      \b(?:i|we)\s+(?:have\s+|had\s+|just\s+)?(?:already\s+)?(?:paid|transferred|deposited|sent\s+(?:the\s+|him\s+|her\s+|them\s+)?(?:money|amount|₹|rs))
+      \b(?:i|we)\s+(?:have\s+|had\s+|just\s+)?(?:(?:already|mistakenly|accidentally|wrongly)\s+)?(?:paid|transferred|deposited|sent\s+(?:the\s+|him\s+|her\s+|them\s+)?(?:money|amount|₹|rs))
     | \balready\s+(?:paid|transferred|sent\s+(?:the\s+)?money)
     | \b(?:maine|humne)\b.{0,40}?\b(?:pay|payment|bhej|transfer|de\s+diye)
     | \bpay(?:ment)?\s+(?:kar\s+diya|kar\s+di|ho\s+gaya|kiya)
@@ -32,6 +32,17 @@ PAID_RE = re.compile(r"""(?ix)
     | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:shared|gave|told)\s+(?:\w+\s+){0,3}(?:otp|pin|cvv)
     | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:installed|downloaded)\s+(?:\w+\s+){0,3}(?:app|apk|anydesk|teamviewer|quicksupport)
 """)
+# "I sent it to you by mistake, please send it back": a forwarded message in someone else's voice (a friend, or the
+# fake "sent by mistake" scam), not the person telling us they've paid.
+_RETURN_ASK = re.compile(r"(by mistake|mistakenly|galti se|गलती से).{0,80}(return (it|the money|them)|send (it |the money |them )?back"
+                         r"|wapas (bhej|kar) ?(do|dena|dijiye|de do|karo)|वापस (भेज|कर) ?(दो|दें|दीजिए|देना))", re.I | re.S)
+
+
+def says_paid(messages: list[str]) -> bool:
+    """Whether the person says they've paid, shared a code or installed an app, judged message by message."""
+    return any(PAID_RE.search(m) and not _RETURN_ASK.search(m) for m in messages)
+
+
 # Common Hindi words written in Latin letters. Two different ones mark a message as Hinglish.
 _HINGLISH_RE = re.compile(r"\b(aap|aapka|aapki|aapke|aapko|aapne|hai|hain|nahi|nahin|kya|karo|kare|karein|kijiye|bhejo|bhejiye|"
                           r"mat|liye|raha|rahi|gaya|hoga|jayega|jaega|paisa|paise|mera|meri|maine|abhi|turant|jaldi|"

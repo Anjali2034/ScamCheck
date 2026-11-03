@@ -327,7 +327,23 @@ def test_follow_up_after_paying_drafts_the_complaint_without_ai(offline):
     ("Do not share the OTP with anyone", False),
 ])
 def test_already_paid_means_the_person_not_the_scammer(text, paid):
-    assert bool(rules.PAID_RE.search(text)) is paid
+    assert rules.says_paid([text]) is paid
+
+
+@pytest.mark.parametrize("text, paid", [
+    ("Maine galti se tumhe 500 bhej diye, wapas bhej dena please.", False),  # a friend asking for it back
+    ("मैंने गलती से आपको ₹500 भेज दिए, वापस भेज दीजिए", False),
+    ("Maine galti se scammer ko 5000 bhej diye, wapas kaise milenge?", True),  # the person lost money
+    ("I mistakenly sent ₹5000 to a fraudster, can I get it back?", True),
+])
+def test_someone_asking_for_a_mistaken_payment_back_hasnt_lost_anything(text, paid):
+    assert rules.says_paid([text]) is paid
+
+
+def test_a_later_i_paid_still_counts_after_a_mistaken_payment_message(offline):
+    inv = Investigation()
+    assert not inv.run("Maine galti se tumhe 500 bhej diye, wapas bhej dena please.")["already_paid"]
+    assert inv.run("maine 500 wapas bhej diye")["already_paid"]
 
 
 def test_greetings_get_help_not_a_verdict(offline):
