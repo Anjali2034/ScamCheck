@@ -108,7 +108,7 @@ def test_history_roundtrip(tmp_path, monkeypatch):
     assert history.lookup_previous_reports("upi", "x@ybl")["times_seen"] == 0
     history.record_indicators([{"kind": "upi", "value": "X@ybl"}], "SCAM", "Refund scam")
     r = history.lookup_previous_reports("upi", "x@ybl")
-    assert r["times_seen"] == 1 and r["verdicts"] == {"SCAM": 1}
+    assert r["times_seen"] == 1 and r["verdicts"] == {"SCAM": 1}  # the CLI (no reporter) counts as one person
 
 
 def test_complaint_marks_missing():
@@ -247,7 +247,7 @@ def test_raw_otp_never_reaches_the_ai(monkeypatch):
 FAKE_KYC = "Dear Customer, your SBI account will be BLOCKED today. Update KYC: http://sbi-kyc-update.xyz/login"
 
 
-def _fake_url(url, emit):
+def _fake_url(url, emit, me=""):
     """What the real checks return for a 5-day-old fake SBI site, without touching the network."""
     return {"url": url,
             "domain": {**agent.domain.check_brand_impersonation(url), "registration": {"status": "ok", "age_days": 5}},
@@ -575,7 +575,7 @@ def _ai_says(monkeypatch, verdict):
 def test_ai_cant_call_an_unknown_link_safe(offline, monkeypatch):
     # Nothing found either way (a brand-new phishing site looks like this too): "couldn't tell", not "safe".
     _ai_says(monkeypatch, "SAFE")
-    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit: {
+    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit, me="": {
         "url": url, "domain": {"host": "example.com", "findings": [], "registration": {"age_days": 9000}},
         "reputation": None, "sandbox": {"status": "ok", "title": "Example Domain"}})
     r = Investigation().run("Is this genuine? https://example.com/login")
@@ -584,7 +584,7 @@ def test_ai_cant_call_an_unknown_link_safe(offline, monkeypatch):
 
 def test_ai_can_say_safe_when_a_check_found_a_reason(offline, monkeypatch):
     _ai_says(monkeypatch, "SAFE")
-    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit: {
+    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit, me="": {
         "url": url, "domain": {"is_official_domain": True, "brand": "State Bank of India", "host": "onlinesbi.sbi"},
         "reputation": None, "sandbox": None})
     assert Investigation().run("Is this real? https://www.onlinesbi.sbi/")["verdict"] == "SAFE"

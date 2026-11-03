@@ -4,6 +4,7 @@ reply. When the free AI quota is used up, a rule-based verdict answers instead, 
 import base64
 import re
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Callable
 
@@ -62,13 +63,14 @@ def _check_domain(url: str) -> dict:
     return {**domain.check_brand_impersonation(url), "registration": domain.domain_age(domain.registrable_domain(url))}
 
 
-def _analyse_phone(number: str) -> dict:
+def _analyse_phone(number: str, me: str = "") -> dict:
     info = extract.analyse_phone(number)
-    info["history"] = history.lookup_previous_reports("phone", info["number"])
+    info["history"] = history.lookup_previous_reports("phone", info["number"], exclude=me)
     return info
 
 
-def _investigate_url(url: str, emit: Event) -> dict:
+def _investigate_url(url: str, emit: Event, me: str = "") -> dict:
+    """`me` is who's checking (a reporter id): their own earlier reports never count against them."""
     d = _tool("check_domain", _check_domain, emit, url=url)
     entry = {"url": url, "domain": d, "reputation": None, "sandbox": None, "destination": None}
     if d.get("is_official_domain"):
@@ -80,12 +82,12 @@ def _investigate_url(url: str, emit: Event) -> dict:
     with ThreadPoolExecutor(max_workers=3) as pool:
         rep = pool.submit(_tool, "check_url_reputation", reputation.check_url_reputation, emit, url=url)
         box = pool.submit(_tool, "visit_in_sandbox", sandbox.visit_url, emit, url=url)
-        dest = pool.submit(_investigate_destination, target, emit) if target else None
+        dest = pool.submit(_investigate_destination, target, emit, me) if target else None
         entry["reputation"], entry["sandbox"] = rep.result(), box.result()
         entry["destination"] = dest.result() if dest else None
     landed = (entry["sandbox"] or {}).get("final_url") if (entry["sandbox"] or {}).get("status") == "ok" else None
     if landed and _elsewhere(landed, d) and not (target and domain.registrable_domain(landed) == domain.registrable_domain(target)):
-        entry["destination"] = _investigate_destination(landed, emit)  # any link that redirects elsewhere, e.g. by script
+        entry["destination"] = _investigate_destination(landed, emit, me)  # any link that redirects elsewhere, e.g. by script
     if entry["destination"] and hop.get("destination_down"):
         entry["destination"]["down"] = True
     return entry
@@ -95,18 +97,18 @@ def _elsewhere(url: str | None, d: dict) -> bool:
     return bool(url) and domain.registrable_domain(url) != d.get("registrable_domain")
 
 
-def _investigate_destination(url: str, emit: Event) -> dict:
+def _investigate_destination(url: str, emit: Event, me: str = "") -> dict:
     """The website checks for where a link really ends up (its page was already opened by the sandbox visit)."""
     d = _tool("check_domain", _check_domain, emit, url=url)
     dest = {"url": url, "domain": d, "reputation": None, "history": None}
     if not d.get("is_official_domain"):
         dest["reputation"] = _tool("check_url_reputation", reputation.check_url_reputation, emit, url=url)
-        dest["history"] = _tool("check_indicator_history", history.lookup_previous_reports, emit,
+        dest["history"] = _tool("check_indicator_history", partial(history.lookup_previous_reports, exclude=me), emit,
                                 kind="domain", value=d.get("registrable_domain", ""))
     return dest
 
 
-def gather(new_text: str, all_text: str, emit: Event) -> dict:
+def gather(new_text: str, all_text: str, emit: Event, me: str = "") -> dict:
     """Every check, in parallel. Indicators come from the newest message; scripts read the whole conversation."""
     ind = _tool("extract_indicators", extract.extract_indicators, emit, text=new_text)
     urls = ind.get("urls", [])[:MAX_URLS]
@@ -115,14 +117,26 @@ def gather(new_text: str, all_text: str, emit: Event) -> dict:
                + [("domain", domain.registrable_domain(u)) for u in urls if domain.registrable_domain(u) not in domain.SHORTENERS]
                + [("short_link", domain.short_link_id(u)) for u in urls if domain.registrable_domain(u) in domain.SHORTENERS])
     with ThreadPoolExecutor(max_workers=8) as pool:
-        url_jobs = [pool.submit(_investigate_url, u, emit) for u in urls]
+        url_jobs = [pool.submit(_investigate_url, u, emit, me) for u in urls]
         script_job = pool.submit(_tool, "match_scam_scripts", scripts.match_scam_scripts, emit, text=all_text)
-        phone_jobs = [pool.submit(_tool, "analyse_phone_number", _analyse_phone, emit, number=n)
+        phone_jobs = [pool.submit(_tool, "analyse_phone_number", partial(_analyse_phone, me=me), emit, number=n)
                       for n in ind.get("phone_numbers", [])[:MAX_PHONES]]
-        history_jobs = [pool.submit(_tool, "check_indicator_history", history.lookup_previous_reports, emit, kind=k, value=v)
+        history_jobs = [pool.submit(_tool, "check_indicator_history", partial(history.lookup_previous_reports, exclude=me), emit, kind=k, value=v)
                         for k, v in lookups]
         return {"indicators": ind, "urls": [j.result() for j in url_jobs], "scripts": script_job.result(),
                 "phones": [j.result() for j in phone_jobs], "history": [j.result() for j in history_jobs]}
+
+
+def _report_as(result: dict) -> str | None:
+    """The verdict to remember for "flagged by N other people", or None. Earlier reports never make a new one on their
+    own: otherwise one wrong verdict would snowball, each check citing the last as proof."""
+    bad = ("SCAM", "LIKELY_SCAM", "SUSPICIOUS")
+    if result["verdict"] not in bad:
+        return None
+    if not any(e["source"] == rules.HISTORY for e in result["evidence"]):
+        return result["verdict"]
+    own, _ = rules.verdict_from([e for e in result["evidence"] if e["source"] != rules.HISTORY])
+    return own if own in bad else None
 
 
 def _union(a: list, b: list) -> list:
@@ -152,8 +166,11 @@ class Investigation:
         self.complaint: dict | None = None
 
     def run(self, text: str = "", images: list[tuple[bytes, str]] | None = None, emit: Event = lambda e: None,
-            person: str = "") -> dict:
-        """`person` ("web:<id>", "wa:<number>") is who the free AI budget is shared fairly between; "" for the CLI."""
+            person: str = "", reporter: str = "") -> dict:
+        """`person` ("web:<id>", "wa:<number>") is who the free AI budget is shared fairly between; "" for the CLI.
+        `reporter` is who counts as one person for "flagged by N other people" (the network address on the web, so
+        clearing the browser doesn't make a new person); it defaults to `person`."""
+        me = history.reporter_id(reporter or person)
         text, _ = otp_shield.mask_otps(text)  # the server masks first; this also covers the CLI
         screenshot_text, codes_in_screenshots, unreadable = self._read_screenshots(images or [], emit)
         if unreadable and not text.strip():
@@ -167,7 +184,7 @@ class Investigation:
         all_text = "\n\n".join(self.texts)
 
         emit({"type": "status", "message": "Running the checks…"})
-        self.findings = _merge(self.findings, gather(text, all_text, emit))
+        self.findings = _merge(self.findings, gather(text, all_text, emit, me))
         evidence = rules.evidence_from(self.findings, all_text)
         already_paid = bool(rules.PAID_RE.search(all_text))
         if not evidence and not already_paid and not any(self.findings["indicators"].get(k) for k in
@@ -201,8 +218,8 @@ class Investigation:
         result["language"] = rules.language(all_text)
         result["link_destinations"] = rules.link_destinations(self.findings)
         result["indicators"] = rules.suspect_indicators(self.findings)
-        if result["verdict"] in ("SCAM", "LIKELY_SCAM", "SUSPICIOUS") and result["indicators"]:
-            history.record_indicators(result["indicators"], result["verdict"], result["scam_type"])
+        if (report := _report_as(result)) and result["indicators"]:
+            history.record_indicators(result["indicators"], report, result["scam_type"], reporter=me)
         self.verdict = result
         emit({"type": "verdict", "verdict": result})
         return result

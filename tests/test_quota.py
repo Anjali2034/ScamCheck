@@ -29,7 +29,7 @@ def fake_groq(monkeypatch):
 
     monkeypatch.setattr(config, "GROQ_API_KEY", "gsk_test")
     monkeypatch.setattr(llm.requests, "post", post)
-    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit: {"url": url, "domain": {}, "reputation": None, "sandbox": None})
+    monkeypatch.setattr(agent, "_investigate_url", lambda url, emit, me="": {"url": url, "domain": {}, "reputation": None, "sandbox": None})
     return calls, responses, R
 
 

@@ -117,7 +117,7 @@ def redact_for_feed(e: dict) -> dict | None:
     return None  # thinking, text, screenshots, status
 
 
-def _investigate(key: str, label: str, text: str, images: list, emit, public: bool = False) -> dict:
+def _investigate(key: str, label: str, text: str, images: list, emit, public: bool = False, reporter: str = "") -> dict:
     """Run one turn of a conversation. Only `public` sessions (demo numbers) stream their content to the live feed."""
     inv, lock = sessions.get(key)
 
@@ -132,7 +132,7 @@ def _investigate(key: str, label: str, text: str, images: list, emit, public: bo
 
     publish({"type": "start", "text": text[:500], "has_image": bool(images)})
     with lock:
-        return inv.run(text=text, images=images, emit=both, person=key)
+        return inv.run(text=text, images=images, emit=both, person=key, reporter=reporter)
 
 
 def client_network(request: Request) -> str:
@@ -162,7 +162,8 @@ def demo():
 @app.post("/api/investigate")
 async def investigate(request: Request, text: str = Form(""), session_id: str = Form("web"),
                       image: UploadFile | None = File(None)):
-    if not quota.web_check_allowed(client_network(request)):
+    network = client_network(request)
+    if not quota.web_check_allowed(network):
         raise HTTPException(429, BUSY)
     img = None
     if image and image.filename:
@@ -182,7 +183,8 @@ async def investigate(request: Request, text: str = Form(""), session_id: str = 
         if hidden_codes:
             emit({"type": "notice", "message": otp_shield.warning(text)})
         try:
-            result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, [img] if img else [], emit)
+            result = await asyncio.to_thread(_investigate, f"web:{session_id}", "web", text, [img] if img else [], emit,
+                                          False, f"net:{network}")
             emit({"type": "done", "result": result, "whatsapp_text": format_for_whatsapp(result)})
         except Exception as e:
             emit({"type": "error", "message": str(e)})

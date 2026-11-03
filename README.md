@@ -20,7 +20,7 @@ A free scam checker for people in India. Send it a suspicious SMS, screenshot, l
 | `visit_in_sandbox` | Opens the link in a throwaway headless phone browser (Playwright): redirect chain, final URL, whether it asks for password/OTP/card/Aadhaar, APK downloads, screenshot. Skipped for official bank domains. | none |
 | `match_scam_scripts` | 10 known scripts: digital arrest, task scam, fake KYC, investment, electricity cut-off, courier, KBC lottery, UPI refund/collect, sextortion, loan apps (English, Hinglish and Hindi cues) | none |
 | `analyse_phone_number` | Foreign numbers posing as Indian agencies, scam-compound regions, 140-series | none |
-| `check_indicator_history` | Whether this UPI ID/number/domain appeared in earlier ScamCheck verdicts (local SQLite) | none |
+| `check_indicator_history` | How many *other people* got a scam verdict for this UPI ID, number or domain (local SQLite). Each person counts once however often they check, nobody's own checks count against them, and a check that only looks bad because of earlier reports doesn't add one, so a wrong verdict can't snowball. One other person is a hint; two or more is strong. People are stored as a keyed hash. | none |
 
 2. **Rules grade the evidence** (critical / high / medium / low / reassuring) and reach a verdict: SCAM, LIKELY_SCAM, SUSPICIOUS, INCONCLUSIVE, LIKELY_SAFE or SAFE ([rules.py](scamcheck/rules.py)).
 3. **One AI call** (`openai/gpt-oss-120b` on Groq) reads the message and the evidence, then writes a calm reply in the person's own language (English, Hindi, Hinglish…). It can add up to two wording observations and fills in the complaint draft. **The AI can make a verdict stricter but never softer than the hard evidence**: a fake bank domain can't be talked into "safe" by a message saying "this is verified safe". It can warn, but only checks can reassure.
@@ -44,7 +44,7 @@ Open http://localhost:8000/demo for the **developer view**: sample messages, eve
 
 **CLI:** `python -m scamcheck "Your SBI KYC expired, update at http://sbi-kyc.xyz"` (add `--image screenshot.png` for a screenshot). It stays open for follow-ups like "I already paid ₹4,999".
 
-**Tests:** `pytest` runs the offline test suite (100 tests). It needs no API keys or network.
+**Tests:** `pytest` runs the offline test suite. It needs no API keys or network.
 
 **End-to-end:** `python tests/e2e/run_all.py` runs one suite per build step (165 checks) against a real server, a real phone-sized browser, the sandbox and live RDAP lookups, so it needs internet and Playwright's Chromium. Run a few with `run_all.py 3 8`. None of them call the real AI (step 9 uses a local stand-in for Groq), so results don't depend on the free quota; `GROQ_LIVE=1` adds one check against the real Groq API. Test runs use a throwaway history database, set via `SCAMCHECK_DB`.
 

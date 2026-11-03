@@ -98,11 +98,7 @@ def _url_evidence(u: dict) -> list[dict]:
     out = [e for e in out if "shortener hides" not in e["finding"]
            and not (dest["domain"].get("is_official_domain") and e["source"] in ("Brand impersonation check", "Link check"))]
     out += _link_evidence(dest)
-    h = dest.get("history") or {}
-    bad = sum(n for v, n in (h.get("verdicts") or {}).items() if v in ("SCAM", "LIKELY_SCAM"))
-    if bad:
-        out.append(_ev("Earlier ScamCheck reports", f"{h['value']} was flagged as a scam in {bad} earlier check"
-                       + ("s" if bad > 1 else "") + ".", "high"))
+    out += _history_evidence(dest.get("history"))
     if dest.get("down"):
         out.append(_ev("Link check", "The short link points to a website that no longer exists.", "medium"))
     return out
@@ -138,14 +134,25 @@ def evidence_from(findings: dict, text: str) -> list[dict]:
         if not upi["known_psp"]:
             out.append(_ev("UPI ID check", f"'@{upi['psp']}' in {upi['vpa']} is not a known bank or UPI app handle.", "medium"))
     for h in findings["history"] + [p.get("history", {}) for p in findings["phones"]]:
-        bad = sum(n for v, n in (h.get("verdicts") or {}).items() if v in ("SCAM", "LIKELY_SCAM"))
-        if bad:
-            out.append(_ev("Earlier ScamCheck reports", f"{h['value']} was flagged as a scam in {bad} earlier check"
-                           + ("s" if bad > 1 else "") + ".", "high"))
+        out += _history_evidence(h)
     if otp_shield.MASK in text and not any(e["severity"] in ("critical", "high", "medium") for e in out):
         out.append(_ev("OTP message", "This looks like a normal OTP message. Those are only dangerous when someone asks "
                                       "you to share the code.", "reassuring"))
     return out
+
+
+HISTORY = "Earlier ScamCheck reports"
+
+
+def _history_evidence(h: dict | None) -> list[dict]:
+    """Other people's scam verdicts on this link/number/UPI ID. One person is a hint (their verdict may have been
+    wrong); two or more who each got a scam verdict is strong."""
+    bad = sum(n for v, n in ((h or {}).get("verdicts") or {}).items() if v in ("SCAM", "LIKELY_SCAM"))
+    if not bad:
+        return []
+    who = "1 other person" if bad == 1 else f"{bad} other people"
+    return [_ev(HISTORY, f"{who} who checked {h['value']} on ScamCheck got a scam result.",
+                "high" if bad >= 2 else "medium")]
 
 
 def verdict_from(evidence: list[dict]) -> tuple[str, str]:
