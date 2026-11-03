@@ -8,15 +8,15 @@
       "fact": "No Indian agency arrests anyone over a video call or asks for money to 'verify' funds. 'Digital arrest' does not exist in Indian law.",
       "cues": [
         {"re": "digital(ly)? arrest|डिजिटल अरेस्ट", "w": 5},
-        {"re": "\\b(cbi|ed|ncb|enforcement directorate|narcotics|crime branch|cyber cell|mumbai police|delhi police)\\b", "w": 2},
-        {"re": "money laundering|hawala|drug(s)? (parcel|trafficking)", "w": 3},
-        {"re": "arrest warrant|fir (has been|is) (registered|lodged)|case (has been )?registered against you", "w": 3},
-        {"re": "(parcel|package|courier).{0,40}(seized|illegal|drugs|passport|mdma)", "w": 3},
-        {"re": "(aadhaar|aadhar|sim|mobile number).{0,40}(misused|linked to|involved in|illegal)", "w": 3},
-        {"re": "(trai|telecom).{0,40}(disconnect|block|suspend)", "w": 2},
-        {"re": "(do not|don't|mat) (tell|inform|batana).{0,30}(anyone|family|kisi)", "w": 3},
-        {"re": "(stay|remain) on (the )?(video )?call|skype|video (call )?verification", "w": 2},
-        {"re": "(verify|verification of) (your )?(funds|money|account)|rbi (safe|secret|escrow) account", "w": 4}
+        {"re": "\\b(cbi|ed|ncb|enforcement directorate|narcotics|crime branch|cyber cell|mumbai police|delhi police)\\b|सीबीआई|ईडी|एनसीबी|नारकोटिक्स|क्राइम ब्रांच|साइबर सेल|(मुंबई|दिल्ली) पुलिस", "w": 2},
+        {"re": "money laundering|hawala|drug(s)? (parcel|trafficking)|मनी लॉन्ड्रिंग|हवाला|ड्रग्स? (पार्सल|तस्करी)", "w": 3},
+        {"re": "arrest warrant|fir (has been|is) (registered|lodged)|case (has been )?registered against you|गिरफ्तारी (का )?वारंट|(एफआईआर|fir|केस|मुकदमा).{0,20}दर्ज|(case|fir).{0,20}darj", "w": 3},
+        {"re": "(parcel|package|courier).{0,40}(seized|illegal|drugs|passport|mdma)|(पार्सल|पैकेज|कूरियर).{0,40}(जब्त|ड्रग्स|अवैध|पासपोर्ट)", "w": 3},
+        {"re": "(aadhaar|aadhar|sim|mobile number).{0,40}(misused|linked to|involved in|illegal)|(आधार|सिम|मोबाइल नंबर).{0,40}(गलत इस्तेमाल|दुरुपयोग|जुड़|केस|अवैध)|(aadhaar|aadhar|sim).{0,40}(case|galat istemal)", "w": 3},
+        {"re": "(trai|telecom).{0,40}(disconnect|block|suspend)|(ट्राई|टेलीकॉम).{0,40}(बंद|ब्लॉक|काट)", "w": 2},
+        {"re": "(do not|don't|mat) (tell|inform|batana).{0,30}(anyone|family|kisi)|(किसी|परिवार|घर).{0,20}(मत|न|ना) (बता|कह)|(kisi|family|ghar).{0,20}(mat|na) (bata|keh)", "w": 3},
+        {"re": "(stay|remain) on (the )?(video )?call|skype|video (call )?verification|(वीडियो )?कॉल पर (बने )?रहें|स्काइप|वीडियो (कॉल )?(वेरिफिकेशन|सत्यापन)", "w": 2},
+        {"re": "(verify|verification of) (your )?(funds|money|account)|rbi (safe|secret|escrow) account|(पैसे|फंड|राशि|खाते).{0,20}(का |की )?(वेरिफिकेशन|सत्यापन)|आरबीआई.{0,20}(सेफ|सुरक्षित|गुप्त) (खाते|खाता|अकाउंट)", "w": 4}
       ]
     },
     {
@@ -25,13 +25,13 @@
       "how_it_works": "You are offered easy money for liking videos, rating hotels or reviewing products. Small payouts build trust, then you're moved to 'prepaid' or 'merchant' tasks that need deposits, which are never returned.",
       "fact": "No genuine job asks you to pay or deposit money to receive tasks or unlock earnings.",
       "cues": [
-        {"re": "part.?time (job|work)|work from home|ghar baithe", "w": 2},
-        {"re": "(like|subscribe|rate|review).{0,30}(youtube|videos?|hotels?|products?|google maps)", "w": 3},
-        {"re": "(earn|kamaye|income).{0,25}(₹|rs\\.?|inr)?\\s?\\d{3,5}.{0,15}(daily|per day|a day|roz|daily)", "w": 3},
-        {"re": "prepaid task|merchant task|vip task|recharge.{0,20}task|task.{0,20}(deposit|recharge)", "w": 5},
-        {"re": "telegram|t\\.me/", "w": 1},
-        {"re": "(hr|recruit(er|ment)|hiring).{0,30}(amazon|flipkart|google|deloitte|naukri)", "w": 2},
-        {"re": "commission|reward points?.{0,20}(withdraw|redeem)", "w": 1}
+        {"re": "part.?time (job|work)|work from home|ghar baithe|पार्ट.?टाइम (जॉब|काम|नौकरी)|घर बैठे|वर्क फ्रॉम होम", "w": 2},
+        {"re": "(like|subscribe|rate|review).{0,30}(youtube|videos?|hotels?|products?|google maps)|(लाइक|सब्सक्राइब|रिव्यू|रेटिंग).{0,30}(यूट्यूब|वीडियो|होटल|प्रोडक्ट)|(यूट्यूब|वीडियो|होटल|प्रोडक्ट).{0,30}(लाइक|सब्सक्राइब|रिव्यू|रेटिंग)|(youtube|videos?|hotels?|products?).{0,20}(like|subscribe|rate|review) kar", "w": 3},
+        {"re": "(earn|kamaye|income).{0,25}(₹|rs\\.?|inr)?\\s?\\d{3,5}.{0,15}(daily|per day|a day|roz|daily)|(रोज़|प्रतिदिन|डेली|हर दिन).{0,15}(₹|रु\\.?|रुपये)?\\s?\\d{3,5}.{0,15}(कमा|इनकम)|(कमाएं|कमाई|इनकम).{0,25}(₹|रु\\.?)?\\s?\\d{3,5}.{0,15}(रोज़|प्रतिदिन|डेली)|roz.{0,10}(₹|rs\\.?)?\\s?\\d{3,5}.{0,15}kama", "w": 3},
+        {"re": "prepaid task|merchant task|vip task|recharge.{0,20}task|task.{0,20}(deposit|recharge)|प्रीपेड टास्क|मर्चेंट टास्क|वीआईपी टास्क|टास्क.{0,20}(डिपॉजिट|रिचार्ज|जमा)", "w": 5},
+        {"re": "telegram|t\\.me/|टेलीग्राम", "w": 1},
+        {"re": "(hr|recruit(er|ment)|hiring).{0,30}(amazon|flipkart|google|deloitte|naukri)|(एचआर|भर्ती|हायरिंग).{0,30}(अमेज़न|अमेजन|फ्लिपकार्ट|गूगल|टेलीग्राम)", "w": 2},
+        {"re": "commission|reward points?.{0,20}(withdraw|redeem)|कमीशन", "w": 1}
       ]
     },
     {
@@ -41,12 +41,12 @@
       "fact": "Banks never send KYC links by SMS or WhatsApp and never ask for OTP, PIN or password.",
       "cues": [
         {"re": "kyc.{0,40}(expir|pending|update|incomplete|suspend|block)|(केवाईसी|kyc).{0,40}(अपडेट|बंद|ब्लॉक|समाप्त)", "w": 4},
-        {"re": "(account|a/c|card|pan|sim|yono|net ?banking).{0,40}(block|suspend|deactivat|freeze|band ho)|(खाता|अकाउंट|कार्ड|सिम).{0,40}(बंद|ब्लॉक)", "w": 3},
-        {"re": "(update|link).{0,20}(pan|aadhaar|aadhar)", "w": 3},
+        {"re": "(account|a/c|card|pan|sim|yono|net ?banking).{0,40}(block|suspend|deactivat|freeze|band ho)|(खाता|अकाउंट|कार्ड|सिम).{0,40}(बंद|ब्लॉक)|(account|a/c|card|pan|sim).{0,40}band ho", "w": 3},
+        {"re": "(update|link).{0,20}(pan|aadhaar|aadhar)|(पैन|आधार).{0,20}(अपडेट|लिंक)|(pan|aadhaar|aadhar).{0,20}(update|link) kar", "w": 3},
         {"re": "(within|in) \\d{1,2} ?(hours?|hrs|minutes?|mins)|today (itself|midnight)|aaj raat|आज रात", "w": 2},
-        {"re": "\\.apk\\b|download (the )?(app|apk)|anydesk|teamviewer|quick ?support|rustdesk", "w": 4},
-        {"re": "(share|send|tell|enter).{0,20}\\b(otp|mpin|upi pin|cvv|password)\\b", "w": 4},
-        {"re": "reward points?.{0,40}(expir|redeem|claim)", "w": 3}
+        {"re": "\\.apk\\b|download (the )?(app|apk)|anydesk|teamviewer|quick ?support|rustdesk|ऐप डाउनलोड|एपीके|एनीडेस्क|टीमव्यूअर", "w": 4},
+        {"re": "(share|send|tell|enter).{0,20}\\b(otp|mpin|upi pin|cvv|password)\\b|(ओटीपी|otp|पिन|सीवीवी|पासवर्ड).{0,30}(शेयर|बताएं|बताइए|भेजें|डालें|दर्ज)|\\b(otp|mpin|upi pin|cvv|password)\\b.{0,30}(bata|bhej|share kar|daal)", "w": 4},
+        {"re": "reward points?.{0,40}(expir|redeem|claim)|रिवॉर्ड पॉइंट.{0,40}(समाप्त|एक्सपायर|रिडीम)", "w": 3}
       ]
     },
     {
@@ -55,13 +55,13 @@
       "how_it_works": "You are added to a WhatsApp/Telegram 'stock tips' group with a fake 'professor' or 'SEBI-registered advisor'. You install a fake trading app showing huge profits, but withdrawals need 'tax' or 'fees' and never arrive.",
       "fact": "Check every advisor on sebi.gov.in. Real brokers let you withdraw to your own bank account without upfront 'taxes'.",
       "cues": [
-        {"re": "(guaranteed|assured|fixed).{0,20}(return|profit|income)", "w": 4},
-        {"re": "\\d{2,4}\\s?%.{0,20}(return|profit|daily|weekly|monthly)", "w": 3},
-        {"re": "(stock|share|ipo|crypto|forex|trading).{0,40}(tips?|group|mentor|professor|vip|institutional account|block trade|allotment)", "w": 3},
-        {"re": "sebi.?registered|institutional (account|trading)|qib|otc trading", "w": 2},
-        {"re": "(withdraw|withdrawal).{0,40}(tax|fee|charges?|unfreeze|margin|deposit)", "w": 4},
-        {"re": "double (your )?money|paisa double|crorepati", "w": 4},
-        {"re": "usdt|binance p2p|crypto wallet", "w": 2}
+        {"re": "(guaranteed|assured|fixed).{0,20}(return|profit|income)|(गारंटीड|गारंटी|पक्का|फिक्स्ड?).{0,20}(रिटर्न|मुनाफ़ा|प्रॉफिट|कमाई)|(guaranteed|assured|pakka|fixed).{0,20}(munafa|kamai)", "w": 4},
+        {"re": "\\d{2,4}\\s?%.{0,20}(return|profit|daily|weekly|monthly)|\\d{2,4}\\s?%.{0,20}(रिटर्न|मुनाफ़ा|प्रॉफिट|रोज़|हर (दिन|हफ्ते|महीने))|(har|roz) (din|hafte|mahine).{0,10}\\d{2,4}\\s?%", "w": 3},
+        {"re": "(stock|share|ipo|crypto|forex|trading).{0,40}(tips?|group|mentor|professor|vip|institutional account|block trade|allotment)|(स्टॉक|शेयर|आईपीओ|क्रिप्टो|ट्रेडिंग).{0,40}(टिप्स|ग्रुप|मेंटर|प्रोफेसर|वीआईपी)|(वीआईपी|vip) (स्टॉक|शेयर|stock|share)", "w": 3},
+        {"re": "sebi.?registered|institutional (account|trading)|qib|otc trading|सेबी.?(रजिस्टर्ड|पंजीकृत)", "w": 2},
+        {"re": "(withdraw|withdrawal).{0,40}(tax|fee|charges?|unfreeze|margin|deposit)|(निकासी|विड्रॉ|निकालने|निकालना).{0,40}(टैक्स|फीस|शुल्क|चार्ज|जमा)|(withdraw|nikal).{0,40}(tax|fee|charge)", "w": 4},
+        {"re": "double (your )?money|paisa double|crorepati|पैसा डबल|पैसे डबल|दोगुना|करोड़पति", "w": 4},
+        {"re": "usdt|binance p2p|crypto wallet|क्रिप्टो वॉलेट|यूएसडीटी", "w": 2}
       ]
     },
     {
@@ -71,8 +71,8 @@
       "fact": "Electricity boards don't send disconnection threats from personal mobile numbers.",
       "cues": [
         {"re": "(electricity|bijli|power|light|gas) (connection|supply)?.{0,40}(disconnect|cut|kat)|(बिजली|गैस).{0,40}(काट|कट|बंद)", "w": 4},
-        {"re": "(last|previous) month (bill|payment).{0,30}(not|nahi) (updated|update)|पिछले (महीने|माह).{0,30}बिल.{0,30}(अपडेट नहीं|नहीं)", "w": 4},
-        {"re": "(contact|call).{0,20}(electricity )?officer|(अधिकारी|ऑफिसर).{0,20}(से संपर्क|को कॉल)", "w": 3},
+        {"re": "(last|previous) month (bill|payment).{0,30}(not|nahi) (updated|update)|पिछले (महीने|माह).{0,30}बिल.{0,30}(अपडेट नहीं|नहीं)|pichle mahine.{0,30}bill.{0,30}(update )?nahi", "w": 4},
+        {"re": "(contact|call).{0,20}(electricity )?officer|(अधिकारी|ऑफिसर).{0,20}(से संपर्क|को कॉल)|बिजली अधिकारी|officer ko call", "w": 3},
         {"re": "(disconnect|cut|kat|काट|कट|बंद).{0,80}[6-9]\\d{9}", "w": 4},
         {"re": "tonight|9[.:]30 ?pm|aaj raat|आज रात", "w": 1}
       ]
@@ -83,9 +83,9 @@
       "how_it_works": "Message says a parcel is held for an incomplete address or a customs duty, and asks you to pay a small fee via a link. The page steals card details.",
       "fact": "India Post and couriers don't ask for redelivery fees through SMS links.",
       "cues": [
-        {"re": "(parcel|package|shipment|consignment).{0,50}(held|on hold|pending|undeliver|returned|incomplete address)", "w": 4},
-        {"re": "(customs|clearance|redelivery|re-delivery).{0,20}(fee|charge|duty)", "w": 3},
-        {"re": "india ?post|speed ?post|fedex|dhl|blue ?dart|delhivery", "w": 1}
+        {"re": "(parcel|package|shipment|consignment).{0,50}(held|on hold|pending|undeliver|returned|incomplete address)|(पार्सल|पैकेज|शिपमेंट).{0,50}(रुका|रोका|होल्ड|पेंडिंग|डिलीवर नहीं|वापस|अधूरे? पत)|(पते|पता).{0,40}(पार्सल|पैकेज).{0,20}(रुका|रोका|होल्ड)|(parcel|package).{0,50}(hold|ruka|roka)", "w": 4},
+        {"re": "(customs|clearance|redelivery|re-delivery).{0,20}(fee|charge|duty)|(कस्टम|क्लीयरेंस|क्लियरेंस|री-?डिलीवरी).{0,20}(फीस|शुल्क|चार्ज|ड्यूटी)", "w": 3},
+        {"re": "india ?post|speed ?post|fedex|dhl|blue ?dart|delhivery|इंडिया पोस्ट|स्पीड पोस्ट|डीएचएल|फेडेक्स|ब्लू ?डार्ट|डेल्हीवरी", "w": 1}
       ]
     },
     {
@@ -107,10 +107,10 @@
       "how_it_works": "Scammer 'accidentally' sends money, or promises a refund/cashback, then sends a UPI collect request or QR code. Entering your PIN sends money OUT of your account.",
       "fact": "You never need to enter your UPI PIN or scan a QR code to RECEIVE money.",
       "cues": [
-        {"re": "(sent|transferred) (by )?mistake|galti se", "w": 4},
-        {"re": "(scan|enter (your )?(upi )?pin).{0,30}(receive|refund|get|cashback|prize)", "w": 5},
-        {"re": "(refund|cashback).{0,40}(collect request|approve|accept|scan|qr)", "w": 4},
-        {"re": "(army|cisf|crpf) (officer|jawan|person).{0,40}(buy|purchase|rent)", "w": 3},
+        {"re": "(sent|transferred) (by )?mistake|galti se|गलती से.{0,30}(भेज|ट्रांसफर|आ गए)|galti se.{0,30}(bhej|transfer|aa gaye)", "w": 4},
+        {"re": "(scan|enter (your )?(upi )?pin).{0,30}(receive|refund|get|cashback|prize)|(स्कैन|पिन (डालें|डालिए|दर्ज)).{0,30}(पाने|रिफंड|कैशबैक|इनाम|मिलेगा)|(पाने|रिफंड|कैशबैक|वापस).{0,40}(पिन (डालें|डालिए|दर्ज)|स्कैन)|(paane|refund|cashback|wapas).{0,40}(pin daal|scan kar)", "w": 5},
+        {"re": "(refund|cashback).{0,40}(collect request|approve|accept|scan|qr)|(रिफंड|कैशबैक).{0,40}(रिक्वेस्ट|अप्रूव|स्वीकार|एक्सेप्ट|स्कैन|क्यूआर)|(refund|cashback).{0,40}(request|approve)", "w": 4},
+        {"re": "(army|cisf|crpf) (officer|jawan|person).{0,40}(buy|purchase|rent)|(आर्मी|सीआईएसएफ|सीआरपीएफ|फौजी).{0,40}(खरीद|किराए)", "w": 3},
         {"re": "olx|quikr|facebook marketplace", "w": 1}
       ]
     },
@@ -120,8 +120,9 @@
       "how_it_works": "Unknown video call records you next to explicit content, then threatens to send it to your contacts or 'police' unless you pay.",
       "fact": "Don't pay; payment invites more demands. Report at cybercrime.gov.in (women/child category is available) and block.",
       "cues": [
-        {"re": "(video|nude|obscene|private).{0,30}(viral|upload|send to (your )?(family|contacts|friends))", "w": 5},
-        {"re": "youtube.{0,20}(officer|delete|remove).{0,30}video", "w": 4}
+        {"re": "(video|nude|obscene|private|photos?).{0,60}(make (it|them) viral|(will|we'll) (make it viral|upload|leak|send (it )?to (your )?(family|contacts|friends)))|(वीडियो|न्यूड|अश्लील|प्राइवेट|फोटो).{0,60}(वायरल|अपलोड|लीक) कर|(video|photo).{0,60}(viral|upload|leak) kar", "w": 5},
+        {"re": "youtube.{0,20}(officer|delete|remove).{0,30}video|यूट्यूब.{0,20}(अधिकारी|ऑफिसर|डिलीट|हटा).{0,30}वीडियो", "w": 4},
+        {"re": "(pay|send|transfer|दो|दें|भेजो|भेजें|\\bdo\\b|bhejo|de do).{0,40}(\\bor\\b|otherwise|warna|वरना|nahi to|नहीं तो).{0,60}(viral|upload|leak|family|contacts|वायरल|परिवार|लीक)", "w": 4}
       ]
     },
     {
@@ -130,16 +131,17 @@
       "how_it_works": "Pre-approved loan with no documents via an unknown app, which harvests your contacts and photos, then extorts you with huge 'fees' and harassment.",
       "fact": "Check the lender is an RBI-registered NBFC or bank (sachet.rbi.org.in).",
       "cues": [
-        {"re": "pre.?approved.{0,20}loan|instant loan|loan (without|no) (documents|cibil)", "w": 3},
-        {"re": "loan.{0,40}(processing|file|insurance) (fee|charge)", "w": 3}
+        {"re": "pre.?approved.{0,20}loan|instant loan|loan (without|no) (documents|cibil)|प्री.?अप्रूव्ड.{0,20}लोन|इंस्टेंट लोन|तुरंत लोन|बिना (दस्तावेज़?|डॉक्यूमेंट|सिबिल).{0,20}लोन|bina (documents?|cibil).{0,20}loan", "w": 3},
+        {"re": "loan.{0,40}(processing|file|insurance) (fee|charge)|लोन.{0,40}(प्रोसेसिंग|फाइल|बीमा|इंश्योरेंस) ?(फीस|शुल्क|चार्ज)", "w": 3},
+        {"re": "(loan|लोन).{0,120}(fee|फीस|शुल्क|charge).{0,40}(पाने के लिए|paane ke liye|lene ke liye|to get|to receive|to release|disburs)|(loan|लोन).{0,120}(पाने के लिए|paane ke liye|lene ke liye|to get|to receive|to release|disburs).{0,40}(fee|फीस|शुल्क|charge)", "w": 3}
       ]
     }
   ],
   "general_red_flags": [
     {"re": "urgent|immediately|turant|jaldi|last (chance|warning)|final notice|तुरंत|जल्दी", "flag": "Creates urgency to stop you thinking."},
-    {"re": "\\b(otp|mpin|upi pin|cvv)\\b", "flag": "Mentions OTP/PIN/CVV, which no legitimate party will ever ask for."},
+    {"re": "\\b(otp|mpin|upi pin|cvv)\\b|ओटीपी|यूपीआई पिन|सीवीवी", "flag": "Mentions OTP/PIN/CVV, which no legitimate party will ever ask for."},
     {"re": "dear (customer|user|sir/madam)|प्रिय ग्राहक", "flag": "Generic greeting instead of your name."},
-    {"re": "(click|tap|open).{0,15}(link|below|here)", "flag": "Pushes you to click a link."},
-    {"re": "whatsapp.{0,20}(only|me)|(don't|do not) call", "flag": "Insists on WhatsApp-only contact."}
+    {"re": "(click|tap|open).{0,15}(link|below|here)|(क्लिक|टैप).{0,15}(लिंक|करें)|लिंक (पर )?(क्लिक|खोलें)|link (pe|par) click", "flag": "Pushes you to click a link."},
+    {"re": "whatsapp.{0,20}(only|me)|(don't|do not) call|(सिर्फ़|केवल) व्हाट्सएप|कॉल (मत|न) करें", "flag": "Insists on WhatsApp-only contact."}
   ]
 }

@@ -6,7 +6,10 @@ from scamcheck.config import DATA_DIR
 
 # Screenshot OCR often misplaces Hindi's short-i sign and drops the virama ("बिजली" comes back as "बजिली",
 # "कनेक्शन" as "कनेकशन"). So every cue is also tried with both signs removed from the cue and from the text.
-_LOOSE = str.maketrans("", "", "ि्")
+# The same goes for the nukta dot (ड़ and ज़ can each be typed two ways, and OCR drops the dot) and for ँ/ं, which
+# people use interchangeably ("हूँ", "हूं").
+_LOOSE = str.maketrans({"ि": None, "्": None, "़": None, "ँ": "ं",
+                        **{chr(0x0958 + i): base for i, base in enumerate("कखगजडढफय")}})
 
 
 def _cue(pattern: str) -> tuple[re.Pattern, re.Pattern]:
