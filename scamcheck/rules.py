@@ -6,6 +6,10 @@ import re
 
 from scamcheck import otp_shield
 from scamcheck.tools.domain import SHORTENERS, short_link_id
+from scamcheck.tools.scripts import _SCRIPTS
+
+SCRIPT_NAMES_HI = {s["id"]: s["name_hi"] for s in _SCRIPTS}
+_SCRIPT_ID = {s["name"]: s["id"] for s in _SCRIPTS}
 
 VERDICTS = ["SAFE", "LIKELY_SAFE", "INCONCLUSIVE", "SUSPICIOUS", "LIKELY_SCAM", "SCAM"]  # mildest first
 
@@ -203,6 +207,22 @@ def floor_for(evidence: list[dict]) -> str:
     if any(e["severity"] == "reassuring" for e in evidence):
         return "SAFE"
     return "INCONCLUSIVE"
+
+
+def tidy_label(raw: str) -> str:
+    """An AI-written scam type as plain words: "utility_scams" -> "Utility scams". Labels already in words stay."""
+    s = str(raw or "").strip()[:80]
+    if " " not in s:
+        s = s.replace("_", " ").replace("-", " ")
+    if s.isupper() or s.islower():
+        s = s.lower()
+    return s[:1].upper() + s[1:]
+
+
+def scam_label(scam_type: str, language: str) -> str:
+    """What the verdict card shows: the script's name in the reply's language (Hinglish readers get English)."""
+    script = _SCRIPT_ID.get(scam_type)
+    return SCRIPT_NAMES_HI[script] if script and language == "Hindi" else scam_type
 
 
 def scam_type_from(findings: dict, evidence: list[dict]) -> str:

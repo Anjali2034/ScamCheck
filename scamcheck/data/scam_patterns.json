@@ -4,6 +4,7 @@
     {
       "id": "digital_arrest",
       "name": "Digital arrest / fake police or agency",
+      "name_hi": "डिजिटल अरेस्ट / नकली पुलिस या एजेंसी",
       "how_it_works": "Caller poses as CBI, ED, NCB, police, customs, TRAI or RBI. They say your Aadhaar, phone or a parcel is linked to drugs or money laundering, keep you on a video call ('digital arrest'), forbid you to tell anyone, and make you transfer money for 'verification'.",
       "fact": "No Indian agency arrests anyone over a video call or asks for money to 'verify' funds. 'Digital arrest' does not exist in Indian law.",
       "cues": [
@@ -22,6 +23,7 @@
     {
       "id": "task_scam",
       "name": "Online task / part-time job scam",
+      "name_hi": "ऑनलाइन टास्क / पार्ट-टाइम जॉब धोखा",
       "how_it_works": "You are offered easy money for liking videos, rating hotels or reviewing products. Small payouts build trust, then you're moved to 'prepaid' or 'merchant' tasks that need deposits, which are never returned.",
       "fact": "No genuine job asks you to pay or deposit money to receive tasks or unlock earnings.",
       "cues": [
@@ -37,6 +39,7 @@
     {
       "id": "fake_kyc",
       "name": "Fake KYC / account block",
+      "name_hi": "नकली केवाईसी / खाता बंद होने की धमकी",
       "how_it_works": "SMS says your bank account, card, PAN or SIM will be blocked unless you 'update KYC' via a link or app. The link steals your net-banking login and OTP, or installs a remote-access/SMS-stealing app.",
       "fact": "Banks never send KYC links by SMS or WhatsApp and never ask for OTP, PIN or password.",
       "cues": [
@@ -52,6 +55,7 @@
     {
       "id": "investment_scam",
       "name": "Stock-market / crypto investment scam",
+      "name_hi": "शेयर बाज़ार / क्रिप्टो निवेश धोखा",
       "how_it_works": "You are added to a WhatsApp/Telegram 'stock tips' group with a fake 'professor' or 'SEBI-registered advisor'. You install a fake trading app showing huge profits, but withdrawals need 'tax' or 'fees' and never arrive.",
       "fact": "Check every advisor on sebi.gov.in. Real brokers let you withdraw to your own bank account without upfront 'taxes'.",
       "cues": [
@@ -67,6 +71,7 @@
     {
       "id": "utility_disconnection",
       "name": "Electricity / gas bill disconnection",
+      "name_hi": "बिजली / गैस कनेक्शन काटने की धमकी",
       "how_it_works": "SMS claims your electricity will be cut tonight because the last bill wasn't updated, with a personal mobile number to call. The 'officer' gets you to install a remote-access app or pay a small fee via a link.",
       "fact": "Electricity boards don't send disconnection threats from personal mobile numbers.",
       "cues": [
@@ -80,6 +85,7 @@
     {
       "id": "courier_customs",
       "name": "Courier / customs / India Post",
+      "name_hi": "कूरियर / कस्टम / इंडिया पोस्ट धोखा",
       "how_it_works": "Message says a parcel is held for an incomplete address or a customs duty, and asks you to pay a small fee via a link. The page steals card details.",
       "fact": "India Post and couriers don't ask for redelivery fees through SMS links.",
       "cues": [
@@ -91,6 +97,7 @@
     {
       "id": "lottery_prize",
       "name": "Lottery / KBC / gift prize",
+      "name_hi": "लॉटरी / केबीसी / इनाम धोखा",
       "how_it_works": "You've 'won' a KBC lottery, a car or a foreign gift, but must first pay 'processing', 'GST' or 'customs' charges.",
       "fact": "Real prizes never require you to pay to receive them.",
       "cues": [
@@ -104,6 +111,7 @@
     {
       "id": "upi_refund_collect",
       "name": "UPI refund / collect-request trick",
+      "name_hi": "यूपीआई रिफंड / रिक्वेस्ट वाला धोखा",
       "how_it_works": "Scammer 'accidentally' sends money, or promises a refund/cashback, then sends a UPI collect request or QR code. Entering your PIN sends money OUT of your account.",
       "fact": "You never need to enter your UPI PIN or scan a QR code to RECEIVE money.",
       "cues": [
@@ -118,6 +126,7 @@
     {
       "id": "sextortion",
       "name": "Sextortion / video-call blackmail",
+      "name_hi": "सेक्सटॉर्शन / वीडियो कॉल ब्लैकमेल",
       "how_it_works": "Unknown video call records you next to explicit content, then threatens to send it to your contacts or 'police' unless you pay.",
       "fact": "Don't pay; payment invites more demands. Report at cybercrime.gov.in (women/child category is available) and block.",
       "cues": [
@@ -129,6 +138,7 @@
     {
       "id": "loan_app",
       "name": "Instant loan app / harassment",
+      "name_hi": "इंस्टेंट लोन ऐप / उत्पीड़न",
       "how_it_works": "Pre-approved loan with no documents via an unknown app, which harvests your contacts and photos, then extorts you with huge 'fees' and harassment.",
       "fact": "Check the lender is an RBI-registered NBFC or bank (sachet.rbi.org.in).",
       "cues": [

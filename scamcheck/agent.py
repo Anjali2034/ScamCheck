@@ -216,6 +216,7 @@ class Investigation:
         result["complaint"] = self.complaint
         result["otp_warning"] = otp_warning
         result["language"] = rules.language(all_text)
+        result["scam_label"] = rules.scam_label(result["scam_type"], result["language"])
         result["link_destinations"] = rules.link_destinations(self.findings)
         result["indicators"] = rules.suspect_indicators(self.findings)
         if (report := _report_as(result)) and result["indicators"]:
@@ -276,7 +277,7 @@ class Investigation:
         # The AI may warn but never reassure: "reassuring" evidence only comes from checks.
         return {**result, "verdict": v, "checked_by": "ai",
                 "confidence": ai.get("confidence") if ai.get("confidence") in ("high", "medium", "low") else result["confidence"],
-                "scam_type": str(ai.get("scam_type") or result["scam_type"])[:80],
+                "scam_type": result["scam_type"] or rules.tidy_label(ai.get("scam_type")),  # a matched script keeps its own name
                 "user_message": str(ai.get("user_message") or "").strip() or result["user_message"],
                 "already_paid": result["already_paid"] or bool(ai.get("already_paid")),
                 "evidence": evidence + observations}, ai.get("complaint") if isinstance(ai.get("complaint"), dict) else None
@@ -326,7 +327,7 @@ def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
     icon = {"SCAM": "🚨", "LIKELY_SCAM": "🚨", "SUSPICIOUS": "⚠️", "LIKELY_SAFE": "✅", "SAFE": "✅", "INCONCLUSIVE": "❔"}
     label = result["verdict"].replace("_", " ").title()
     parts = [f"{icon.get(result['verdict'], '')} *{label}*"
-             + (f": {result['scam_type']}" if result.get("scam_type") else "")
+             + (f": {result.get('scam_label') or result['scam_type']}" if result.get("scam_type") else "")
              + f" _(confidence: {result['confidence']})_", "", result["user_message"]]
     key = [e for e in result.get("evidence", []) if e["severity"] in ("critical", "high", "reassuring")][:4]
     if key:

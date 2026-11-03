@@ -319,7 +319,7 @@ function renderResult(res, checks, shots) {
         <a class="btn call" href="tel:1930">${t("call")}</a><p class="call-sub">${t("call_sub")}</p></div>` : ""}
     <div class="card verdict ${cls}">
       <h2 tabindex="-1" id="vh">${esc(HEAD[v]?.[res.language] || HEAD[v]?.English || v)}</h2>
-      ${res.scam_type ? `<div class="type">${esc(res.scam_type)}</div>` : ""}
+      ${res.scam_type ? `<div class="type">${esc(res.scam_label || res.scam_type)}</div>` : ""}
       ${(res.link_destinations || []).map(d => `<p class="dest">🔗 ${t("goes_to")} <b>${esc(d.goes_to)}</b>${d.official ? " " + t("official_site") : ""}</p>`).join("")}
       <h3>${t("what")}</h3>
       <p class="todo">${esc(res.user_message)}</p>
