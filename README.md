@@ -2,7 +2,7 @@
 
 A free scam checker for India. Paste a suspicious SMS, WhatsApp message, link, UPI ID or phone number, or add a screenshot, and ScamCheck runs real checks on it. In a few seconds it replies with a verdict, the evidence behind it, and what to do next, in English, Hindi or Hinglish. If you've already paid, it tells you to call **1930** and drafts your **cybercrime.gov.in** complaint.
 
-**Live:** https://scamcheck-h6pe.onrender.com
+**[Try it live](https://scamcheck-h6pe.onrender.com)** · [Developer view](https://scamcheck-h6pe.onrender.com/demo) · [Service status](https://scamcheck-h6pe.onrender.com/api/health) · [Testing guide](docs/TESTING.md)
 
 Indians lost ₹22,495 crore to cyber fraud in 2025, across 28 lakh recorded cases, 24% more cases than in 2024 ([ThePrint](https://theprint.in/india/cybercrime-saw-24-spike-in-2025-indians-lost-rs-22495-crore-mainly-in-investment-scams/2859930/)). Most of these scams follow a handful of known scripts that can be checked automatically.
 
