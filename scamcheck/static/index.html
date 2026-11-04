@@ -67,8 +67,8 @@
   .why li { padding: 8px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 7px; background: var(--muted); }
   .dot.critical, .dot.high { background: var(--bad); } .dot.medium { background: var(--warn); } .dot.reassuring { background: var(--ok); }
-  .call { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 800; font-size: 22px; width: 100%; min-height: 60px; }
-  @media (prefers-color-scheme: dark) { .call { color: #200; } }
+  .card a.call { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 800; font-size: 22px; width: 100%; min-height: 60px; }
+  @media (prefers-color-scheme: dark) { .card a.call { color: #200; } }
   .call-sub { text-align: center; font-size: 15px; margin: 6px 0 0; }
   .shot img { width: 100%; max-height: 420px; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--line); }
   pre { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap;
@@ -174,6 +174,7 @@ const HEAD = {
   INCONCLUSIVE: { English: "Couldn't tell for sure", Hindi: "पक्का नहीं कह सकते", Hinglish: "Pakka nahi keh sakte" },
   LIKELY_SAFE:  { English: "Probably safe", Hindi: "शायद सुरक्षित", Hinglish: "Shayad safe" },
   SAFE:         { English: "Looks safe", Hindi: "सुरक्षित लगता है", Hinglish: "Safe lagta hai" },
+  ACT_NOW:      { English: "Act now", Hindi: "अभी कदम उठाएँ", Hinglish: "Abhi kadam uthaiye" },
 };
 const STEP = {
   read_screenshot: ["Reading the screenshot", "स्क्रीनशॉट पढ़ रहे हैं"],
@@ -315,7 +316,9 @@ function renderResult(res, checks, shots) {
   const box = $("#result");
   if (!res) { box.innerHTML = ""; return; }
   if (!res.verdict) { box.innerHTML = `<div class="card"><p style="margin:0">${esc(res.user_message)}</p></div>`; return; }
-  const v = res.verdict, cls = BAD.includes(v) ? "bad" : v === "SUSPICIOUS" ? "warn" : ["SAFE", "LIKELY_SAFE"].includes(v) ? "good" : "";
+  const v = res.verdict, act = res.already_paid && !BAD.includes(v);  // someone who has lost money needs action, not "couldn't tell"
+  const cls = act || BAD.includes(v) ? "bad" : v === "SUSPICIOUS" ? "warn" : ["SAFE", "LIKELY_SAFE"].includes(v) ? "good" : "";
+  const head = HEAD[act ? "ACT_NOW" : v];
   const order = { critical: 0, high: 1, medium: 2, low: 3, reassuring: 4 };
   const why = [...(res.evidence || [])].sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5));
   const c = res.complaint;
@@ -323,7 +326,7 @@ function renderResult(res, checks, shots) {
     ${res.already_paid ? `<div class="card verdict bad">
         <a class="btn call" href="tel:1930">${t("call")}</a><p class="call-sub">${t("call_sub")}</p></div>` : ""}
     <div class="card verdict ${cls}">
-      <h2 tabindex="-1" id="vh">${esc(HEAD[v]?.[res.language] || HEAD[v]?.English || v)}</h2>
+      <h2 tabindex="-1" id="vh">${esc(head?.[res.language] || head?.English || v)}</h2>
       ${res.scam_type ? `<div class="type">${esc(res.scam_label || res.scam_type)}</div>` : ""}
       ${(res.link_destinations || []).map(d => `<p class="dest">🔗 ${t("goes_to")} <b>${esc(d.goes_to)}</b>${d.official ? " " + t("official_site") : ""}</p>`).join("")}
       <h3>${t("what")}</h3>

@@ -70,6 +70,11 @@ Copy each message into the box, tap **Check it**, then tap **Check something els
 
 Notice: if you'd just lost money, is the first thing you see the right thing?
 
+### A victim with nothing to paste
+
+1. Tap **Check something else**, type `Mere paise kat gaye` and tap **Check it**. You should see the red **📞 Call 1930 now** card, the heading **Abhi kadam uthaiye**, and a complaint draft. Try `I got scammed` and `मेरे पैसे चले गए` as well.
+2. Now try `I never shared my OTP` and `Your money will be deducted today`. Neither should show the 1930 card: nobody has lost anything.
+
 ### A fresh start every time
 
 1. Check message 6 (Hindi).

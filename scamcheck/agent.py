@@ -25,16 +25,22 @@ SYSTEM_PROMPT = """You are ScamCheck. People in India forward you messages they 
 - user_message: 2-4 short, calm sentences in the language on the "Reply language" line. Hinglish means Hindi in Latin letters ("Yeh scam hai. Koi paisa mat bhejiye."), not English. Lead with what to do. No jargon. Don't repeat the evidence; it is shown separately. Only mention links, numbers or UPI IDs that are in the message.
 - Match the advice to the verdict. Most messages people check are genuine, and treating a friend's dinner bill like a scam makes ScamCheck useless.
   - SCAM, LIKELY_SCAM, SUSPICIOUS (and they haven't lost anything): don't reply, pay or call back, and block the sender; to report it, use cybercrime.gov.in or Sanchar Saathi's Chakshu (sancharsaathi.gov.in; in Hindi "संचार साथी", "चक्षु"). Mention their bank only when the message is about their bank account or card.
-  - INCONCLUSIVE: say plainly that nothing wrong was found but you can't confirm it's genuine, then one concrete way to check, e.g. ask the sender on a number or chat they already know, or open the company's own app instead of the link. Never tell them to block or report anyone, and don't mention cybercrime, police or 1930.
+  - INCONCLUSIVE (and they haven't lost anything): say plainly that nothing wrong was found but you can't confirm it's genuine, then one concrete way to check, e.g. ask the sender on a number or chat they already know, or open the company's own app instead of the link. Never tell them to block or report anyone, and don't mention cybercrime, police or 1930.
   - SAFE, LIKELY_SAFE: reassure briefly; at most a one-line reminder never to share an OTP or PIN.
 - Any "if you already paid" advice starts with calling 1930.
-- If the person says they paid, shared an OTP/PIN or installed an app the scammer sent: already_paid=true, tell them to call 1930 now and then their bank, and fill the complaint from what they said (empty strings or [] when unknown). Otherwise complaint=null.
+- If the person says they paid, lost money, shared an OTP/PIN or installed an app the scammer sent: already_paid=true, whatever the verdict, tell them to call 1930 now and then their bank, and fill the complaint from what they said (empty strings or [] when unknown). Otherwise complaint=null.
 - wording_observations: up to 2 scam signs in the wording that the evidence doesn't already cover, e.g. "tells you not to tell your family"; [] if none.
 
 Reply with only this JSON:
 {"verdict": "SCAM|LIKELY_SCAM|SUSPICIOUS|INCONCLUSIVE|LIKELY_SAFE|SAFE", "confidence": "high|medium|low", "scam_type": "short label, or empty if not a scam", "user_message": "...", "already_paid": false, "wording_observations": [{"finding": "...", "severity": "critical|high|medium|low"}], "complaint": null or {"fraud_type": "upi|card|netbanking|investment|task|digital_arrest|ewallet|other", "incident_summary": "first person, chronological", "amount_lost_inr": "", "payment_method": "", "transaction_ids": [], "transaction_datetime": "", "suspect_identifiers": [], "victim_bank": ""}}"""
 
-HELP = "Forward me the suspicious message, link, UPI ID or phone number and I'll check it."
+# Someone in a panic may type too little for any check to run, so even the help text points to the helpline.
+HELP = {"English": "Forward me the suspicious message, link, UPI ID or phone number and I'll check it. "
+                   "If you've already lost money or shared a code, call 1930 now.",
+        "Hindi": "संदिग्ध मैसेज, लिंक, UPI ID या फ़ोन नंबर भेजें, मैं जाँच कर दूँगा। "
+                 "अगर पैसे चले गए हैं या कोड बता दिया है, तो अभी 1930 पर कॉल करें।",
+        "Hinglish": "Suspicious message, link, UPI ID ya phone number bhejiye, main check kar dunga. "
+                    "Agar paise chale gaye hain ya code bata diya hai, to abhi 1930 par call karein."}
 LIMIT_REASON = {"busy": "the free AI is busy", "daily": "today's free AI checks are used up",
                 "person": "you've had today's share of AI checks"}
 
@@ -194,7 +200,7 @@ class Investigation:
         if not evidence and not already_paid and not any(self.findings["indicators"].get(k) for k in
                                                          ("urls", "upi_ids", "phone_numbers", "emails", "messaging_handles")):
             if len(text.split()) < 6:  # "hi", "hello?": nothing to check
-                return self._reply(HELP)
+                return self._reply(HELP[rules.language(text)])
 
         verdict, confidence = rules.verdict_from(evidence, already_paid)
         result = {"verdict": verdict, "confidence": confidence, "scam_type": rules.scam_type_from(self.findings, evidence),
@@ -216,6 +222,8 @@ class Investigation:
                 emit({"type": "status", "message": f"AI unavailable ({e}), so the rule-based verdict stands."})
 
         if result["already_paid"]:
+            if "1930" not in result["user_message"]:  # the one instruction that can't depend on how the AI phrased it
+                result["user_message"] = rules.user_message(result["verdict"], True, all_text)
             self.complaint = self._draft_complaint(ai_complaint, result["scam_type"])
         result["complaint"] = self.complaint
         result["otp_warning"] = otp_warning
@@ -336,9 +344,12 @@ def format_for_whatsapp(result: dict, complaint: bool = False) -> str:
         return result["user_message"]
     icon = {"SCAM": "🚨", "LIKELY_SCAM": "🚨", "SUSPICIOUS": "⚠️", "LIKELY_SAFE": "✅", "SAFE": "✅", "INCONCLUSIVE": "❔"}
     label = result["verdict"].replace("_", " ").title()
-    parts = [f"{icon.get(result['verdict'], '')} *{label}*"
-             + (f": {result.get('scam_label') or result['scam_type']}" if result.get("scam_type") else "")
-             + f" _(confidence: {result['confidence']})_", "", result["user_message"]]
+    head = (f"{icon.get(result['verdict'], '')} *{label}*"
+            + (f": {result.get('scam_label') or result['scam_type']}" if result.get("scam_type") else "")
+            + f" _(confidence: {result['confidence']})_")
+    if result.get("already_paid") and result["verdict"] not in ("SCAM", "LIKELY_SCAM"):
+        head = f"🚨 *{rules.ACT_NOW[result.get('language', 'English')]}*"
+    parts = [head, "", result["user_message"]]
     key = [e for e in result.get("evidence", []) if e["severity"] in ("critical", "high", "reassuring")][:4]
     if key:
         parts += ["", "*Evidence*"] + [f"• {e['finding']} _({e['source']})_" for e in key]

@@ -141,6 +141,14 @@ with sync_playwright() as p:
         page.inner_text("#complaint") if page.locator("#complaint").count() else ""))
     page.click("#again")
 
+    # A few panicked words, with nothing to check: the helpline comes first, and no "couldn't tell" heading.
+    submit(page, "Mere paise kat gaye")
+    check("Panicked message: 'Act now' heading in the person's language", page.inner_text("#result .verdict h2") == "Abhi kadam uthaiye")
+    check("Panicked message: tap-to-call 1930 and a complaint", page.is_visible("a.call") and page.locator("#complaint").count() == 1)
+    check("The 1930 button's text is white on red, not link blue",
+          page.evaluate("getComputedStyle(document.querySelector('a.call')).color") == "rgb(255, 255, 255)")
+    page.click("#again")
+
     # The verdict speaks the person's language.
     submit(page, HINDI)
     head = page.inner_text("#result .verdict h2")

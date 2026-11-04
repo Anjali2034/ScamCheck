@@ -21,33 +21,58 @@ _DOMAIN_FINDING_SEVERITY = [
 _SCRIPT_SEVERITY = {"strong": "critical", "moderate": "high", "weak": "medium"}
 _OTP_FLAG = "Mentions OTP/PIN/CVV"
 
-# First person only: scam texts themselves say "your bill was not paid", which must not read as a confession.
-PAID_RE = re.compile(r"""(?ix)
-      \b(?:i|we)\s+(?:have\s+|had\s+|just\s+)?(?:(?:already|mistakenly|accidentally|wrongly)\s+)?(?:paid|transferred|deposited|sent\s+(?:the\s+|him\s+|her\s+|them\s+)?(?:money|amount|₹|rs))
+# First person only: scam texts themselves say "your bill was not paid", which must not read as a confession. Denials
+# ("I never shared my OTP") and threats ("your money will be deducted") must not send anyone to the helpline either.
+_SECRET = r"(?:otp|pin(?!\s*-?\s*code)|cvv|password)"
+_DENIED = r"(?!(?:never|not|didn|did|don|do|haven|have\s+not|hadn|almost|nearly|was|were|won|will|wouldn)\b)"
+_MONEY_GONE_HI = r"(?:kat|chale|chala|nikal|gayab|lut|loot|khali)\w*\s+(?:ho\s+)?(?:gaye|gaya|gayi|liye|liya)\b"
+PAID_RE = re.compile(rf"""(?ix)
+      \b(?:i|we)(?:['’]ve)?\s+(?:have\s+|had\s+|just\s+)?(?:(?:already|mistakenly|accidentally|wrongly)\s+)?(?:paid|transferred|deposited|sent\s+(?!you\b)(?:\w+\s+){{0,2}}?(?:money|amount|rupees?|₹|rs\b|\d{{3,}}))
     | \balready\s+(?:paid|transferred|sent\s+(?:the\s+)?money)
-    | \b(?:maine|humne)\b.{0,40}?\b(?:pay|payment|bhej|transfer|de\s+diye)
+    | \b(?:maine|humne)\b(?!.{{0,50}}\b(?:nahi|nahin|nhi)\b).{{0,50}}?\b(?:pay|payment|bhej|transfer|de\s+diye)
     | \bpay(?:ment)?\s+(?:kar\s+diya|kar\s+di|ho\s+gaya|kiya)
     | \bpaise?\s+(?:bhej|de)\s+di(?:ye|ya|e)
-    | मैंने.{0,40}(?:भेज|पेमेंट|भुगतान) | पैसे\s+भेज\s+दिए
-    | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:shared|gave|told)\s+(?:\w+\s+){0,3}(?:otp|pin|cvv)
-    | \b(?:i|we)\s+(?:\w+\s+){0,2}(?:installed|downloaded)\s+(?:\w+\s+){0,3}(?:app|apk|anydesk|teamviewer|quicksupport)
+    | मैंने(?!.{{0,50}}नहीं).{{0,50}}(?:भेज|पेमेंट|भुगतान) | पैसे\s+भेज\s+दिए
+    | \b(?:i|we)(?:['’]ve)?\s+{_DENIED}(?:\w+\s+){{0,2}}(?:shared|gave|given|told)\s+(?:\w+\s+){{0,3}}{_SECRET}
+    | \b(?:i|we)(?:['’]ve)?\s+{_DENIED}.{{0,50}}?\b(?:entered|typed|filled)\s+(?:\w+\s+){{0,3}}(?:{_SECRET}|card\s+(?:details|number)|bank\s+details|net\s?banking)
+    | \b(?:i|we)(?:['’]ve)?\s+{_DENIED}(?:\w+\s+){{0,2}}(?:installed|downloaded)\s+(?:\w+\s+){{0,3}}(?:app|apk|anydesk|teamviewer|quicksupport)
+    | \b(?:i|we)(?:['’]ve)?\s+(?:have\s+|just\s+|already\s+)?lost\s+(?:\w+\s+){{0,2}}?(?:money|savings|rupees?|lakhs?|₹|rs\b|\d{{3,}})
+    | \b(?:i\s+(?:was|got|have\s+been)|we\s+(?:were|got|have\s+been)|(?:i|we)['’]ve\s+been)\s+(?:scammed|cheated|defrauded|duped|conned|robbed)\b
+    | \b(?:scammed|cheated|defrauded|duped|conned|robbed)\s+(?:me|us)\b
+    | (?<!your\s)(?<!no\s)\b(?:money|savings|funds?)\s+(?:(?:is|has|have|was|were|got|been)\s+){{0,2}}(?:gone|went|stolen|lost|deducted|debited|withdrawn|taken)\b(?!.{{0,30}}\byour\b)
+    | (?<!\bbe\s)\b(?:deducted|debited|took|taken|stole|stolen|withdrew|withdrawn|gone|lost|cut)\b.{{0,30}}?\bfrom\s+(?:my|our)\b
+    | \b(?:otp|pin(?!\s*-?\s*code)|cvv|password|code)\b.{{0,30}}?\b(?:(?:de|bata|bhej|daal|dal|share\s+kar|enter\s+kar)\s*(?:diya|di|diye|dia)|share\s+ki(?:ya|e))\b
+    | \b(?:mere|mera|meri|hamare|hamara)\s+(?:\w+\s+){{0,2}}?(?:paise?|paisa|rupaye|account|khat[ae])\b.{{0,30}}?\b{_MONEY_GONE_HI}
+    | (?<!aapke\s)(?<!aapka\s)(?<!tumhare\s)\b(?:paise?|paisa)\s+{_MONEY_GONE_HI}
+    | \b(?:mere|hamare)\s+saath\s+(?:\w+\s+){{0,2}}(?:scam|fraud|dhokha|thagi)\b | \bmujhe\s+(?:\w+\s+){{0,2}}(?:thag|loot|lut)\w*
+    | (?:otp|ओटीपी|पिन|pin|सीवीवी|cvv|पासवर्ड|कोड).{{0,30}}?(?:बता|दे|भेज|डाल)\s*(?:दिया|दी|दिए)
+    | मैंने(?!.{{0,50}}नहीं).{{0,40}}(?:otp|ओटीपी|पिन|pin|सीवीवी|cvv|पासवर्ड|कोड).{{0,25}}(?:दिया|बताया|भेजा)
+    | (?:मेरे|मेरा|मेरी|हमारे|हमारा).{{0,40}}?(?:पैसे|पैसा|रुपये|रुपए|खाते|खाता|अकाउंट).{{0,30}}?(?:कट|चले|चला|निकल|गायब|खाली|लुट).{{0,6}}?(?:गए|गये|गया|गई|ली|लिए|लिया)
+    | (?:मेरे|हमारे)\s+साथ\s+(?:\S+\s+){{0,2}}(?:धोखा|ठगी|फ्रॉड|स्कैम)
 """)
 # "I sent it to you by mistake, please send it back": a forwarded message in someone else's voice (a friend, or the
 # fake "sent by mistake" scam), not the person telling us they've paid.
 _RETURN_ASK = re.compile(r"(by mistake|mistakenly|galti se|गलती से).{0,80}(return (it|the money|them)|send (it |the money |them )?back"
-                         r"|wapas (bhej|kar) ?(do|dena|dijiye|de do|karo)|वापस (भेज|कर) ?(दो|दें|दीजिए|देना))", re.I | re.S)
+                         r"|wapas (bhej|kar) ?(do|dena|dijiye|de do|karo)|वापस (भेज|कर) ?(दो|दें|दीजिए|देना))"
+                         # Nobody tells a checker "I sent it to you": this is the sender talking to the reader.
+                         r"|(to you|aapko|tumhe|आपको|तुम्हें).{0,30}(by mistake|mistakenly|galti se|गलती से)"
+                         r"|(by mistake|mistakenly|galti se|गलती से).{0,30}(to you|aapko|tumhe|आपको|तुम्हें)", re.I | re.S)
 
 
 def says_paid(messages: list[str]) -> bool:
-    """Whether the person says they've paid, shared a code or installed an app, judged message by message."""
+    """Whether the person says they've paid, lost money, shared a code or installed an app, judged message by message."""
     return any(PAID_RE.search(m) and not _RETURN_ASK.search(m) for m in messages)
+
+
+# Shown instead of a "couldn't tell" heading to someone who has lost money. A confirmed scam keeps its own heading.
+ACT_NOW = {"English": "Act now", "Hindi": "अभी कदम उठाएँ", "Hinglish": "Abhi kadam uthaiye"}
 
 
 # Common Hindi words written in Latin letters. Two different ones mark a message as Hinglish.
 _HINGLISH_RE = re.compile(r"\b(aap|aapka|aapki|aapke|aapko|aapne|hai|hain|nahi|nahin|kya|karo|kare|karein|kijiye|bhejo|bhejiye|"
                           r"mat|liye|raha|rahi|gaya|hoga|jayega|jaega|paisa|paise|mera|meri|maine|abhi|turant|jaldi|"
                           r"rupaye|lene|dena|milega|jeeti|jeeta|bhai|yaar|yahan|wahan|mein|tum|tumhe|hum|humne|kaise|"
-                          r"kyun|kyunki|accha|theek)\b", re.I)  # not "lakh": Indian English uses it too
+                          r"kyun|kyunki|accha|theek|mere|mujhe|gaye|diya|diye)\b", re.I)  # not "lakh": Indian English uses it too
 _FRAUD_TYPE = {"digital_arrest": "digital_arrest", "task_scam": "task", "investment_scam": "investment",
                "fake_kyc": "netbanking", "upi_refund_collect": "upi"}
 
