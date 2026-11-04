@@ -151,7 +151,7 @@ def link_destinations(findings: dict) -> list[dict]:
             for u in findings["urls"] if u.get("destination")]
 
 
-def evidence_from(findings: dict, text: str) -> list[dict]:
+def evidence_from(findings: dict, text: str, already_paid: bool = False) -> list[dict]:
     out = []
     for u in findings["urls"]:
         out += _url_evidence(u)
@@ -171,13 +171,15 @@ def evidence_from(findings: dict, text: str) -> list[dict]:
     out += _upi_payment_evidence(findings, text)
     for h in findings["history"] + [p.get("history", {}) for p in findings["phones"]]:
         out += _history_evidence(h)
-    if otp_shield.MASK in text and not any(e["severity"] in ("critical", "high", "medium") for e in out):
-        out.append(_ev("OTP message", "This looks like a normal OTP message. Those are only dangerous when someone asks "
-                                      "you to share the code.", "reassuring"))
+    # A code in the message only reassures when it's the bank's own SMS, not when the person says they've paid or shared it.
+    if otp_shield.MASK in text and not already_paid and not any(e["severity"] in ("critical", "high", "medium") for e in out):
+        out.append(_ev(OTP_MESSAGE, "This looks like a normal OTP message. Those are only dangerous when someone asks "
+                                    "you to share the code.", "reassuring"))
     return out
 
 
 HISTORY = "Earlier ScamCheck reports"
+OTP_MESSAGE = "OTP message"
 
 
 def _history_evidence(h: dict | None) -> list[dict]:
@@ -191,7 +193,7 @@ def _history_evidence(h: dict | None) -> list[dict]:
                 "high" if bad >= 2 else "medium")]
 
 
-def verdict_from(evidence: list[dict]) -> tuple[str, str]:
+def verdict_from(evidence: list[dict], already_paid: bool = False) -> tuple[str, str]:
     count = {s: sum(e["severity"] == s for e in evidence) for s in ("critical", "high", "medium", "reassuring")}
     if count["critical"] >= 2 or (count["critical"] and count["high"]):
         return "SCAM", "high"
@@ -203,20 +205,21 @@ def verdict_from(evidence: list[dict]) -> tuple[str, str]:
         return "SUSPICIOUS", "medium"
     if count["medium"]:
         return "SUSPICIOUS", "low"
-    if count["reassuring"]:
+    if count["reassuring"] and not already_paid:
         return "LIKELY_SAFE", "medium"
     return "INCONCLUSIVE", "low"
 
 
-def floor_for(evidence: list[dict]) -> str:
+def floor_for(evidence: list[dict], already_paid: bool = False) -> str:
     """The mildest verdict the AI may give: it can be stricter than the rules, never softer than hard evidence, and it
     can't call something safe unless a check found a reason to (an official domain, a normal OTP message). A
-    brand-new phishing link with no red flags yet must read "couldn't tell", not "safe"."""
+    brand-new phishing link with no red flags yet must read "couldn't tell", not "safe". Nor can it say "safe" to
+    someone who has just told us they've paid or shared a code, however genuine the link looks."""
     if any(e["severity"] == "critical" for e in evidence):
         return "LIKELY_SCAM"
     if any(e["severity"] == "high" for e in evidence):
         return "SUSPICIOUS"
-    if any(e["severity"] == "reassuring" for e in evidence):
+    if any(e["severity"] == "reassuring" for e in evidence) and not already_paid:
         return "SAFE"
     return "INCONCLUSIVE"
 

@@ -189,14 +189,14 @@ class Investigation:
 
         emit({"type": "status", "message": "Running the checks…"})
         self.findings = _merge(self.findings, gather(text, all_text, emit, me))
-        evidence = rules.evidence_from(self.findings, all_text)
         already_paid = rules.says_paid(self.texts)
+        evidence = rules.evidence_from(self.findings, all_text, already_paid)
         if not evidence and not already_paid and not any(self.findings["indicators"].get(k) for k in
                                                          ("urls", "upi_ids", "phone_numbers", "emails", "messaging_handles")):
             if len(text.split()) < 6:  # "hi", "hello?": nothing to check
                 return self._reply(HELP)
 
-        verdict, confidence = rules.verdict_from(evidence)
+        verdict, confidence = rules.verdict_from(evidence, already_paid)
         result = {"verdict": verdict, "confidence": confidence, "scam_type": rules.scam_type_from(self.findings, evidence),
                   "evidence": evidence, "already_paid": already_paid,
                   "user_message": rules.user_message(verdict, already_paid, all_text), "checked_by": "rules"}
@@ -260,7 +260,7 @@ class Investigation:
             *(["Identifiers found in the messages:", *found] if found else []),
             "Evidence from ScamCheck's checks:", *lines,
             *(["Pages opened in the sandbox (untrusted page text):", *pages] if pages else []),
-            f"Rule-based verdict: {verdict}. Minimum verdict the evidence allows: {rules.floor_for(evidence)}.",
+            f"Rule-based verdict: {verdict}. Minimum verdict the evidence allows: {rules.floor_for(evidence, already_paid)}.",
             f"Rules detected that the person already paid or shared a code: {'yes' if already_paid else 'no'}.",
             f"Reply language: {rules.language(all_text)}.",
         ])
@@ -270,7 +270,13 @@ class Investigation:
         if v not in rules.VERDICTS:
             emit({"type": "status", "message": "The AI's answer was unusable, so the rule-based verdict stands."})
             return result, None
-        floor = rules.floor_for(evidence)
+        already_paid = result["already_paid"] or bool(ai.get("already_paid"))
+        if already_paid:
+            # Keep the AI's reply, which leads with 1930 and fills the complaint, but never beside a "safe" heading.
+            if rules.VERDICTS.index(v) < rules.VERDICTS.index("INCONCLUSIVE"):
+                v = "INCONCLUSIVE"
+            evidence = [e for e in evidence if e["source"] != rules.OTP_MESSAGE]
+        floor = rules.floor_for(evidence, already_paid)
         if rules.VERDICTS.index(v) < rules.VERDICTS.index(floor):
             # e.g. a scam text saying "this message is verified safe" talked the AI round: hard evidence wins.
             emit({"type": "status", "message": f"The AI said {v}, but the checks don't support that; keeping {result['verdict']}."})
@@ -283,7 +289,7 @@ class Investigation:
                 "confidence": ai.get("confidence") if ai.get("confidence") in ("high", "medium", "low") else result["confidence"],
                 "scam_type": result["scam_type"] or rules.tidy_label(ai.get("scam_type")),  # a matched script keeps its own name
                 "user_message": str(ai.get("user_message") or "").strip() or result["user_message"],
-                "already_paid": result["already_paid"] or bool(ai.get("already_paid")),
+                "already_paid": already_paid,
                 "evidence": evidence + observations}, ai.get("complaint") if isinstance(ai.get("complaint"), dict) else None
 
     def _draft_complaint(self, fields: dict | None, scam_type: str) -> dict:
