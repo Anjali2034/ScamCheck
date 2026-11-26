@@ -25,3 +25,6 @@ services:
         sync: false
       - key: DEMO_NUMBERS
         sync: false
+      # Supabase Postgres Session pooler URI (IPv4), with ?sslmode=require. Keeps history and budgets across deploys.
+      - key: SUPABASE_DB_URL
+        sync: false

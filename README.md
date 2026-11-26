@@ -73,7 +73,7 @@ Web page ────────▶ /api/investigate ────┼─▶ Inve
 | AI | Groq free tier (`openai/gpt-oss-120b`), plain HTTP, one call per check |
 | Link sandbox | Playwright (headless Chromium) |
 | OCR | Tesseract (English and Hindi) |
-| Storage | SQLite |
+| Storage | Supabase Postgres in production, SQLite locally and in tests |
 | Messaging | WhatsApp Cloud API (Meta) |
 | Front end | One HTML file, no framework or build step |
 | Hosting | Docker on Render's free plan |
@@ -134,6 +134,7 @@ Each conversation gets blue ticks and "typing…", then one reply. Messages sent
 
 ```powershell
 pytest                            # unit tests: offline, no keys, under a minute
+$env:PG_TEST_URL="postgresql://…"; pytest tests	est_postgres_storage.py   # storage on a real Postgres (emptied by the tests)
 python tests\e2e\run_all.py       # end-to-end: real server, browser, sandbox and RDAP (needs internet)
 python tests\e2e\run_all.py 3 8   # selected end-to-end suites
 ```
@@ -151,7 +152,16 @@ The [Dockerfile](Dockerfile) builds one image containing the app, Chromium for t
 3. After the first build, open `https://<your-app>.onrender.com`.
 4. Optional: a free [cron-job.org](https://cron-job.org) job that opens `/api/health` every 10 minutes keeps the service awake.
 
-Render's free plan has 512 MB of memory and a tenth of a CPU. To fit, only one sandbox browser runs at a time (peak around 210 MB), and a link that waits more than 25 s is skipped with a note. The disk is wiped on each deploy, which resets the history and the usage counters.
+Render's free plan has 512 MB of memory and a tenth of a CPU. To fit, only one sandbox browser runs at a time (peak around 210 MB), and a link that waits more than 25 s is skipped with a note. The disk is wiped on each deploy, so the history and usage counters live in Supabase Postgres and survive deploys (SQLite is used only when `SUPABASE_DB_URL` is unset). If the database can't be reached, every check still runs: history reads as "not seen before" and budgets as unused.
+
+### Supabase setup
+
+1. At [supabase.com](https://supabase.com), create a free project in **Southeast Asia (Singapore)**, the same region as Render. Save the database password.
+2. In the **SQL Editor**, run [supabase/schema.sql](supabase/schema.sql). The server also runs it on startup; this just shows the tables straight away. It turns on Row Level Security with no policies, so Supabase's public API can't read the tables.
+3. Under **Connect → Session pooler**, copy the URI (Render can't reach the IPv6-only direct host), put in the password (URL-encode any special characters) and add `?sslmode=require`.
+4. In Render, add it as `SUPABASE_DB_URL` under **Environment**. After the redeploy, `/api/health` shows `"storage": "postgres"`.
+
+Free projects pause after a week without activity; the cron-job.org ping reads the database every 10 minutes, so it stays active. Keep the live URI out of your local `.env`: use a second free project for local testing.
 
 ## Free-tier limits
 
@@ -190,9 +200,11 @@ scamcheck/
 ├── inbox.py         Webhook retry dedupe and message-burst merging
 ├── whatsapp.py      Meta Cloud API: signatures, parsing, media, sending
 ├── config.py        Settings from environment variables
+├── db.py            Storage: Supabase Postgres or SQLite, with safe defaults when it's down
 ├── tools/           One module per check (domain, sandbox, reputation, scripts, extract, history, complaint)
 ├── data/            Brand domains and scam-script patterns (JSON, editable without code changes)
 └── static/          The public page and the developer view
+supabase/schema.sql  Tables and Row Level Security for Supabase
 tests/               Unit tests, plus end-to-end suites in tests/e2e/
 docs/TESTING.md      Manual testing script
 ```
