@@ -10,6 +10,8 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 RUNTIME_DIR = ROOT / "runtime"
 SCREENSHOT_DIR = RUNTIME_DIR / "screenshots"
 DB_PATH = Path(os.getenv("SCAMCHECK_DB") or RUNTIME_DIR / "scamcheck.db")  # the "seen before" history
+# Supabase Postgres (free). Use the Session pooler URI (IPv4) with ?sslmode=require. Unset = SQLite at DB_PATH.
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL", "").strip()
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 def is_production(env=os.environ) -> bool:
