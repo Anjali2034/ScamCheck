@@ -10,6 +10,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 COPY scamcheck ./scamcheck
+COPY supabase ./supabase
 
 # Not root: a page that broke out of the browser would land as an ordinary user with nothing to read.
 RUN mkdir -p /app/runtime && chown pwuser /app/runtime

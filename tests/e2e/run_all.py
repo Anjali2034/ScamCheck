@@ -22,7 +22,8 @@ wanted = {int(a) for a in sys.argv[1:]}
 if wanted:
     suites = [s for s in suites if int(s.name[4:s.name.index("_")]) in wanted]
 
-env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""), "PYTHONIOENCODING": "utf-8"}
+env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""), "PYTHONIOENCODING": "utf-8",
+       "SUPABASE_DB_URL": ""}  # SQLite even if .env points at Supabase (.env never overrides a variable already set)
 failed = []
 for s in suites:
     print(f"\n===== {s.stem}")
