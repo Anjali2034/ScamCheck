@@ -2,25 +2,33 @@
 
 Nobody is turned away for using it a lot: past a soft limit, every check still runs and only the AI is skipped, so
 the reply comes from the rules. Hard limits only stop floods (a bot, a stuck script), and even then the message
-says what to do. Budgets are counted in the same SQLite file as the history, so a restart doesn't reset them
-(on Render's free disk, a redeploy still does; Groq's own 429 is the backstop).
+says what to do. Budgets are counted in the same database as the history (Supabase Postgres in production), so
+restarts and redeploys don't reset them. If the database can't be reached, budgets read as unused and every use is
+allowed: a check never fails over a counter, and Groq's own 429 is the backstop.
 """
-import sqlite3
+import re
 import threading
 import time
 from collections import deque
-from datetime import datetime, timezone
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 
-from scamcheck import config
+from scamcheck import config, db
 
 # The last slice of the daily AI budget is kept for people who say they've lost money: the AI fills in their complaint.
 VICTIM_RESERVE = 0.10
 # WhatsApp messages kept back for safety: OTP warnings and the one "out of free replies" notice per person.
 WHATSAPP_RESERVE = 50
 
+# Usage rows are kept this long. Only today's and this month's are ever read; older ones (some named after a
+# WhatsApp number) are deleted once a day.
+KEEP_DAYS = 35
+_DATED = re.compile(r":(\d{4}-\d{2}(?:-\d{2})?)$")
+
 _lock = threading.Lock()
 _ai_paused_until = 0.0
 _windows: dict[str, deque] = {}
+_pruned_on = ""
 
 
 def _day() -> str:
@@ -31,31 +39,59 @@ def _month() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
+@contextmanager
 def _conn():
-    c = sqlite3.connect(config.DB_PATH)
-    c.execute("CREATE TABLE IF NOT EXISTS usage (bucket TEXT PRIMARY KEY, n INTEGER NOT NULL)")
-    return c
+    with db.connect(config.DB_PATH) as c:
+        if db.backend() == "sqlite":  # Postgres gets its tables from supabase/schema.sql
+            c.execute("CREATE TABLE IF NOT EXISTS usage (bucket TEXT PRIMARY KEY, n INTEGER NOT NULL)")
+        yield c
+
+
+def _prune(c) -> None:
+    """Once a UTC day, delete usage rows whose day or month ended more than KEEP_DAYS ago."""
+    global _pruned_on
+    today = _day()
+    if _pruned_on == today:
+        return
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
+    old = [(b,) for (b,) in c.execute("SELECT bucket FROM usage").fetchall()
+           if (m := _DATED.search(b)) and m.group(1) < cutoff[:len(m.group(1))]]
+    if old:
+        c.executemany("DELETE FROM usage WHERE bucket=?", old)
+    _pruned_on = today
 
 
 def used(bucket: str) -> int:
-    with _lock, _conn() as c:
-        row = c.execute("SELECT n FROM usage WHERE bucket=?", (bucket,)).fetchone()
+    try:
+        with _lock, _conn() as c:
+            row = c.execute("SELECT n FROM usage WHERE bucket=?", (bucket,)).fetchone()
+    except db.StorageError:
+        return 0
     return row[0] if row else 0
 
 
 def _add(bucket: str, n: int = 1) -> int:
-    with _lock, _conn() as c:
-        c.execute("INSERT INTO usage VALUES (?, ?) ON CONFLICT(bucket) DO UPDATE SET n = n + excluded.n", (bucket, n))
-        return c.execute("SELECT n FROM usage WHERE bucket=?", (bucket,)).fetchone()[0]
+    try:
+        with _lock, _conn() as c:
+            _prune(c)
+            return c.execute("INSERT INTO usage (bucket, n) VALUES (?, ?) "
+                             "ON CONFLICT (bucket) DO UPDATE SET n = usage.n + excluded.n RETURNING n",
+                             (bucket, n)).fetchone()[0]
+    except db.StorageError:
+        return 0
 
 
 def _take_if_under(bucket: str, limit: int) -> bool:
-    """Count one use if that stays within the limit. Atomic, so two replies at once can't both take the last one."""
-    with _lock, _conn() as c:
-        row = c.execute("SELECT n FROM usage WHERE bucket=?", (bucket,)).fetchone()
-        if (row[0] if row else 0) >= limit:
-            return False
-        c.execute("INSERT INTO usage VALUES (?, 1) ON CONFLICT(bucket) DO UPDATE SET n = n + 1", (bucket,))
+    """Count one use if that stays within the limit. One statement, so two servers at once can't both take the last one."""
+    if limit <= 0:
+        return False
+    try:
+        with _lock, _conn() as c:
+            _prune(c)
+            return c.execute("INSERT INTO usage (bucket, n) VALUES (?, 1) "
+                             "ON CONFLICT (bucket) DO UPDATE SET n = usage.n + 1 WHERE usage.n < ? RETURNING n",
+                             (bucket, limit)).fetchone() is not None
+    except db.StorageError:
         return True
 
 
@@ -138,4 +174,5 @@ def status() -> dict:
     """For /api/health: how much of today's and this month's free budget is left."""
     return {"ai_tokens_left_today": max(0, config.AI_DAILY_TOKENS - used(f"ai_tokens:{_day()}")),
             "ai_paused": time.monotonic() < _ai_paused_until,
-            "whatsapp_replies_left_this_month": whatsapp_replies_left()}
+            "whatsapp_replies_left_this_month": whatsapp_replies_left(),
+            "storage": db.backend()}
